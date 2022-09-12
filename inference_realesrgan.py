@@ -6,7 +6,7 @@ from basicsr.archs.rrdbnet_arch import RRDBNet
 
 from realesrgan import RealESRGANer
 from realesrgan.archs.srvgg_arch import SRVGGNetCompact
-
+import pdb
 
 def main():
     """Inference demo for Real-ESRGAN.
@@ -29,11 +29,11 @@ def main():
     parser.add_argument('--face_enhance', action='store_true', help='Use GFPGAN to enhance face')
     parser.add_argument(
         '--fp32', action='store_true', help='Use fp32 precision during inference. Default: fp16 (half precision).')
-    parser.add_argument(
-        '--alpha_upsampler',
-        type=str,
-        default='realesrgan',
-        help='The upsampler for the alpha channels. Options: realesrgan | bicubic')
+    # parser.add_argument(
+    #     '--alpha_upsampler',
+    #     type=str,
+    #     default='realesrgan',
+    #     help='The upsampler for the alpha channels. Options: realesrgan | bicubic')
     parser.add_argument(
         '--ext',
         type=str,
@@ -65,19 +65,22 @@ def main():
         model_path = os.path.join('realesrgan/weights', args.model_name + '.pth')
     if not os.path.isfile(model_path):
         raise ValueError(f'Model {args.model_name} does not exist.')
+    # model_path -- 'experiments/pretrained_models/RealESRGAN_x4plus.pth'
+    # model -- RRDBNet
 
     # restorer
     upsampler = RealESRGANer(
-        scale=netscale,
+        scale=netscale, # 4
         model_path=model_path,
         model=model,
-        tile=args.tile,
-        tile_pad=args.tile_pad,
-        pre_pad=args.pre_pad,
-        half=not args.fp32,
-        gpu_id=args.gpu_id)
+        tile=args.tile, # 0
+        tile_pad=args.tile_pad, # 10
+        pre_pad=args.pre_pad, # 0
+        half=not args.fp32, # True
+        gpu_id=args.gpu_id) # args.gpu_id -- None
 
-    if args.face_enhance:  # Use GFPGAN for face enhancement
+
+    if args.face_enhance:  # False, Use GFPGAN for face enhancement
         from gfpgan import GFPGANer
         face_enhancer = GFPGANer(
             model_path='https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth',
@@ -90,7 +93,7 @@ def main():
     if os.path.isfile(args.input):
         paths = [args.input]
     else:
-        paths = sorted(glob.glob(os.path.join(args.input, '*')))
+        paths = sorted(glob.glob(os.path.join(args.input, '*.png'))) + sorted(glob.glob(os.path.join(args.input, '*.jpg')))
 
     for idx, path in enumerate(paths):
         imgname, extension = os.path.splitext(os.path.basename(path))
@@ -107,14 +110,13 @@ def main():
                 _, _, output = face_enhancer.enhance(img, has_aligned=False, only_center_face=False, paste_back=True)
             else:
                 output, _ = upsampler.enhance(img, outscale=args.outscale)
+            # output = output.clip(0.0, 255.0)
         except RuntimeError as error:
             print('Error', error)
             print('If you encounter CUDA out of memory, try to set --tile with a smaller number.')
         else:
-            if args.ext == 'auto':
-                extension = extension[1:]
-            else:
-                extension = args.ext
+            extension = extension[1:]
+
             if img_mode == 'RGBA':  # RGBA images should be saved in png format
                 extension = 'png'
             if args.suffix == '':

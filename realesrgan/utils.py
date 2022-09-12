@@ -7,6 +7,7 @@ import threading
 import torch
 from basicsr.utils.download_util import load_file_from_url
 from torch.nn import functional as F
+import pdb
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -50,24 +51,32 @@ class RealESRGANer():
         else:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') if device is None else device
         # if the model_path starts with https, it will first download models to the folder: realesrgan/weights
-        if model_path.startswith('https://'):
-            model_path = load_file_from_url(
-                url=model_path, model_dir=os.path.join(ROOT_DIR, 'realesrgan/weights'), progress=True, file_name=None)
+        # if model_path.startswith('https://'):
+        #     model_path = load_file_from_url(
+        #         url=model_path, model_dir=os.path.join(ROOT_DIR, 'realesrgan/weights'), progress=True, file_name=None)
+
+        # model_path -- 'experiments/pretrained_models/RealESRGAN_x4plus.pth'
+        #  model -- RRDBNet( ... )
+
         loadnet = torch.load(model_path, map_location=torch.device('cpu'))
+
         # prefer to use params_ema
-        if 'params_ema' in loadnet:
+        if 'params_ema' in loadnet: # True
             keyname = 'params_ema'
         else:
             keyname = 'params'
-        model.load_state_dict(loadnet[keyname], strict=True)
-        model.eval()
+        # model.load_state_dict(loadnet[keyname], strict=True)
+        # model.eval()
+
         self.model = model.to(self.device)
-        if self.half:
+        if self.half: # True
             self.model = self.model.half()
 
     def pre_process(self, img):
         """Pre-process, such as pre-pad and mod pad, so that the images can be divisible
         """
+        # ==> pdb.set_trace()
+
         img = torch.from_numpy(np.transpose(img, (2, 0, 1))).float()
         self.img = img.unsqueeze(0).to(self.device)
         if self.half:
@@ -77,10 +86,13 @@ class RealESRGANer():
         if self.pre_pad != 0:
             self.img = F.pad(self.img, (0, self.pre_pad, 0, self.pre_pad), 'reflect')
         # mod pad for divisible borders
+        # self.scale -- 4, self.mod_scale -- None
+
         if self.scale == 2:
             self.mod_scale = 2
         elif self.scale == 1:
             self.mod_scale = 4
+
         if self.mod_scale is not None:
             self.mod_pad_h, self.mod_pad_w = 0, 0
             _, _, h, w = self.img.size()
@@ -92,6 +104,8 @@ class RealESRGANer():
 
     def process(self):
         # model inference
+        print("self.img.size(): ", self.img.size())
+
         self.output = self.model(self.img)
 
     def tile_process(self):
@@ -100,6 +114,9 @@ class RealESRGANer():
 
         Modified from: https://github.com/ata4/esrgan-launcher
         """
+
+        pdb.set_trace()
+
         batch, channel, height, width = self.img.shape
         output_height = height * self.scale
         output_width = width * self.scale
@@ -135,6 +152,8 @@ class RealESRGANer():
                 input_tile = self.img[:, :, input_start_y_pad:input_end_y_pad, input_start_x_pad:input_end_x_pad]
 
                 # upscale tile
+                pdb.set_trace()
+
                 try:
                     with torch.no_grad():
                         output_tile = self.model(input_tile)
@@ -161,6 +180,7 @@ class RealESRGANer():
 
     def post_process(self):
         # remove extra pad
+        # ==> pdb.set_trace()
         if self.mod_scale is not None:
             _, _, h, w = self.output.size()
             self.output = self.output[:, :, 0:h - self.mod_pad_h * self.scale, 0:w - self.mod_pad_w * self.scale]
@@ -181,6 +201,7 @@ class RealESRGANer():
         else:
             max_range = 255
         img = img / max_range
+
         if len(img.shape) == 2:  # gray image
             img_mode = 'L'
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
@@ -197,12 +218,13 @@ class RealESRGANer():
 
         # ------------------- process image (without the alpha channel) ------------------- #
         self.pre_process(img)
-        if self.tile_size > 0:
+        if self.tile_size > 0: # False, self.tile_size == 0
             self.tile_process()
         else:
             self.process()
         output_img = self.post_process()
         output_img = output_img.data.squeeze().float().cpu().clamp_(0, 1).numpy()
+
         output_img = np.transpose(output_img[[2, 1, 0], :, :], (1, 2, 0))
         if img_mode == 'L':
             output_img = cv2.cvtColor(output_img, cv2.COLOR_BGR2GRAY)
