@@ -3,9 +3,9 @@
 #
 # /************************************************************************************
 # ***
-# ***    Copyright 2020-2022 Dell(18588220928@163.com), All Rights Reserved.
+# ***    Copyright 2022 Dell(18588220928@163.com), All Rights Reserved.
 # ***
-# ***    File Author: Dell, 2020年 09月 09日 星期三 23:56:45 CST
+# ***    File Author: Dell, 2022年 09月 13日 星期二 00:22:40 CST
 # ***
 # ************************************************************************************/
 #
@@ -13,40 +13,42 @@
 import torch
 from torch import nn as nn
 from torch.nn import functional as F
-from torch.nn import init as init
-from torch.nn.modules.batchnorm import _BatchNorm
+# from torch.nn import init as init
+# from torch.nn.modules.batchnorm import _BatchNorm
 
-def default_init_weights(module_list, scale=1, bias_fill=0, **kwargs):
-    """Initialize network weights.
 
-    Args:
-        module_list (list[nn.Module] | nn.Module): Modules to be initialized.
-        scale (float): Scale initialized weights, especially for residual
-            blocks. Default: 1.
-        bias_fill (float): The value to fill bias. Default: 0
-        kwargs (dict): Other arguments for initialization function.
-    """
-    if not isinstance(module_list, list):
-        module_list = [module_list]
-    for module in module_list:
-        for m in module.modules():
-            if isinstance(m, nn.Conv2d):
-                init.kaiming_normal_(m.weight, **kwargs)
-                m.weight.data *= scale
-                if m.bias is not None:
-                    m.bias.data.fill_(bias_fill)
-            elif isinstance(m, nn.Linear):
-                init.kaiming_normal_(m.weight, **kwargs)
-                m.weight.data *= scale
-                if m.bias is not None:
-                    m.bias.data.fill_(bias_fill)
-            elif isinstance(m, _BatchNorm):
-                init.constant_(m.weight, 1)
-                if m.bias is not None:
-                    m.bias.data.fill_(bias_fill)
+# def default_init_weights(module_list, scale=1, bias_fill=0, **kwargs):
+#     """Initialize network weights.
+
+#     Args:
+#         module_list (list[nn.Module] | nn.Module): Modules to be initialized.
+#         scale (float): Scale initialized weights, especially for residual
+#             blocks. Default: 1.
+#         bias_fill (float): The value to fill bias. Default: 0
+#         kwargs (dict): Other arguments for initialization function.
+#     """
+#     if not isinstance(module_list, list):
+#         module_list = [module_list]
+#     for module in module_list:
+#         for m in module.modules():
+#             if isinstance(m, nn.Conv2d):
+#                 init.kaiming_normal_(m.weight, **kwargs)
+#                 m.weight.data *= scale
+#                 if m.bias is not None:
+#                     m.bias.data.fill_(bias_fill)
+#             elif isinstance(m, nn.Linear):
+#                 init.kaiming_normal_(m.weight, **kwargs)
+#                 m.weight.data *= scale
+#                 if m.bias is not None:
+#                     m.bias.data.fill_(bias_fill)
+#             elif isinstance(m, _BatchNorm):
+#                 init.constant_(m.weight, 1)
+#                 if m.bias is not None:
+#                     m.bias.data.fill_(bias_fill)
+
 
 def pixel_unshuffle(x, scale: int):
-    """ Pixel unshuffle.
+    """Pixel unshuffle.
 
     Args:
         x (Tensor): Input feature with shape (b, c, hh, hw).
@@ -56,12 +58,13 @@ def pixel_unshuffle(x, scale: int):
         Tensor: the pixel unshuffled feature.
     """
     b, c, hh, hw = x.size()
-    out_channel = int(c * (scale**2))
+    out_channel = int(c * (scale ** 2))
     assert hh % scale == 0 and hw % scale == 0
     h = hh // scale
     w = hw // scale
     x_view = x.view(b, c, h, scale, w, scale)
     return x_view.permute(0, 1, 3, 5, 2, 4).reshape(b, out_channel, h, w)
+
 
 def make_layer(basic_block, num_basic_block, **kwarg):
     """Make layers by stacking the same blocks.
@@ -77,6 +80,7 @@ def make_layer(basic_block, num_basic_block, **kwarg):
     for _ in range(num_basic_block):
         layers.append(basic_block(**kwarg))
     return nn.Sequential(*layers)
+
 
 class ResidualDenseBlock(nn.Module):
     """Residual Dense Block.
@@ -99,7 +103,7 @@ class ResidualDenseBlock(nn.Module):
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
         # initialization
-        default_init_weights([self.conv1, self.conv2, self.conv3, self.conv4, self.conv5], 0.1)
+        # default_init_weights([self.conv1, self.conv2, self.conv3, self.conv4, self.conv5], 0.1)
 
     def forward(self, x):
         x1 = self.lrelu(self.conv1(x))
@@ -187,11 +191,11 @@ class RRDBNet(nn.Module):
         body_feat = self.conv_body(self.body(feat))
         feat = feat + body_feat
         # upsample
-        feat = self.lrelu(self.conv_up1(F.interpolate(feat, scale_factor=2.0, mode='nearest')))
-        feat = self.lrelu(self.conv_up2(F.interpolate(feat, scale_factor=2.0, mode='nearest')))
+        feat = self.lrelu(self.conv_up1(F.interpolate(feat, scale_factor=2.0, mode="bicubic", align_corners=True)))
+        feat = self.lrelu(self.conv_up2(F.interpolate(feat, scale_factor=2.0, mode="bicubic", align_corners=True)))
         out = self.conv_last(self.lrelu(self.conv_hr(feat)))
 
         if self.scale > 1:
-            alpha = F.interpolate(alpha, scale_factor=float(self.scale), mode='nearest')
+            alpha = F.interpolate(alpha, scale_factor=float(self.scale), mode="bicubic", align_corners=True)
 
-        return torch.cat((out.clamp(0.0, 1.0), alpha), dim = 1)
+        return torch.cat((out.clamp(0.0, 1.0), alpha), dim=1)

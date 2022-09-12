@@ -72,7 +72,7 @@ def image_server(name, host="localhost", port=6379):
     def do_service(input_file, output_file, targ):
         print(f"  clean {input_file} ...")
         try:
-            input_tensor = todos.data.load_tensor(input_file)
+            input_tensor = todos.data.load_rgba_tensor(input_file)
             output_tensor = model_forward(model, device, input_tensor)
             todos.data.save_tensor(output_tensor, output_file)
             return True
@@ -131,8 +131,8 @@ def video_service(input_file, output_file, targ):
 
         input_tensor = todos.data.frame_totensor(data)
 
-        # convert tensor from 1x4xHxW to 1x3xHxW
-        input_tensor = input_tensor[:, 0:3, :, :]
+        # # convert tensor from 1x4xHxW to 1x3xHxW
+        # input_tensor = input_tensor[:, 0:3, :, :]
         output_tensor = model_forward(model, device, input_tensor)
 
         temp_output_file = "{}/{:06d}.png".format(output_dir, no)
