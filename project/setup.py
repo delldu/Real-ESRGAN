@@ -15,16 +15,16 @@ with open("README.md", "r") as file:
     long_description = file.read()
 
 setup(
-    name="image_clean",
+    name="image_zoom",
     version="1.0.0",
     author="Dell Du",
     author_email="18588220928@163.com",
-    description="image/video clean package",
+    description="image/video zoom package",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/delldu/ESRGANplus.git",
-    packages=["image_clean"],
-    package_data={"image_clean": ["models/image_clean.pth"]},
+    url="https://github.com/delldu/Real-ESRGAN.git",
+    packages=["image_zoom"],
+    package_data={"image_zoom": ["models/image_zoom.pth"]},
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -13,7 +13,7 @@ install:
 	python setup.py install
 
 uninstall:
-	pip uninstall image_clean
+	pip uninstall image_zoom
 
 clean:
-	rm -rf build dist image_clean.egg-info __pycache__
+	rm -rf build dist image_zoom.egg-info __pycache__

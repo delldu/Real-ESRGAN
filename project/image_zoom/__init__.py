@@ -1,4 +1,4 @@
-"""Image/Video Clean Package."""  # coding=utf-8
+"""Image/Video Zoom Package."""  # coding=utf-8
 #
 # /************************************************************************************
 # ***
@@ -27,7 +27,7 @@ import pdb
 def get_model():
     """Create model."""
 
-    model_path = "models/image_clean.pth"
+    model_path = "models/image_zoom.pth"
     cdir = os.path.dirname(__file__)
     checkpoint = model_path if cdir == "" else cdir + "/" + model_path
 
@@ -40,8 +40,8 @@ def get_model():
     model = torch.jit.script(model)
 
     todos.data.mkdir("output")
-    if not os.path.exists("output/image_clean.torch"):
-        model.save("output/image_clean.torch")
+    if not os.path.exists("output/image_zoom.torch"):
+        model.save("output/image_zoom.torch")
 
     return model, device
 
@@ -60,7 +60,7 @@ def image_client(name, input_files, output_dir):
     image_filenames = todos.data.load_files(input_files)
     for filename in image_filenames:
         output_file = f"{output_dir}/{os.path.basename(filename)}"
-        context = cmd.clean(filename, output_file)
+        context = cmd.zoom(filename, output_file)
         redo.set_queue_task(context)
     print(f"Created {len(image_filenames)} tasks for {name}.")
 
@@ -70,7 +70,7 @@ def image_server(name, host="localhost", port=6379):
     model, device = get_model()
 
     def do_service(input_file, output_file, targ):
-        print(f"  clean {input_file} ...")
+        print(f"  zoom {input_file} ...")
         try:
             input_tensor = todos.data.load_rgba_tensor(input_file)
             output_tensor = model_forward(model, device, input_tensor)
@@ -80,7 +80,7 @@ def image_server(name, host="localhost", port=6379):
             print("exception: ", e)
             return False
 
-    return redos.image.service(name, "image_clean", do_service, host, port)
+    return redos.image.service(name, "image_zoom", do_service, host, port)
 
 
 def image_predict(input_files, output_dir):
@@ -122,10 +122,10 @@ def video_service(input_file, output_file, targ):
     # load model
     model, device = get_model()
 
-    print(f"  clean {input_file}, save to {output_file} ...")
+    print(f"  zoom {input_file}, save to {output_file} ...")
     progress_bar = tqdm(total=video.n_frames)
 
-    def clean_video_frame(no, data):
+    def zoom_video_frame(no, data):
         # print(f"frame: {no} -- {data.shape}")
         progress_bar.update(1)
 
@@ -138,7 +138,7 @@ def video_service(input_file, output_file, targ):
         temp_output_file = "{}/{:06d}.png".format(output_dir, no)
         todos.data.save_tensor(output_tensor, temp_output_file)
 
-    video.forward(callback=clean_video_frame)
+    video.forward(callback=zoom_video_frame)
 
     redos.video.encode(output_dir, output_file)
 
@@ -152,11 +152,11 @@ def video_service(input_file, output_file, targ):
 
 def video_client(name, input_file, output_file):
     cmd = redos.video.Command()
-    context = cmd.clean(input_file, output_file)
+    context = cmd.zoom(input_file, output_file)
     redo = redos.Redos(name)
     redo.set_queue_task(context)
     print(f"Created 1 video tasks for {name}.")
 
 
 def video_server(name, host="localhost", port=6379):
-    return redos.video.service(name, "video_clean", video_service, host, port)
+    return redos.video.service(name, "video_zoom", video_service, host, port)

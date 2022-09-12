@@ -14,9 +14,9 @@ import torch
 from torch import nn as nn
 from torch.nn import functional as F
 
+
 def pixel_unshuffle(x, scale: int):
-    """Pixel unshuffle.
-    """
+    """Pixel unshuffle."""
     b, c, hh, hw = x.size()
     out_channel = int(c * (scale ** 2))
     assert hh % scale == 0 and hw % scale == 0
@@ -27,8 +27,7 @@ def pixel_unshuffle(x, scale: int):
 
 
 def make_layer(basic_block, num_basic_block, **kwarg):
-    """Make layers by stacking the same blocks.
-    """
+    """Make layers by stacking the same blocks."""
     layers = []
     for _ in range(num_basic_block):
         layers.append(basic_block(**kwarg))
@@ -36,8 +35,7 @@ def make_layer(basic_block, num_basic_block, **kwarg):
 
 
 class ResidualDenseBlock(nn.Module):
-    """Residual Dense Block.
-    """
+    """Residual Dense Block."""
 
     def __init__(self, num_feat=64, num_grow_ch=32):
         super(ResidualDenseBlock, self).__init__()
@@ -63,8 +61,7 @@ class ResidualDenseBlock(nn.Module):
 
 
 class RRDB(nn.Module):
-    """Residual in Residual Dense Block.
-    """
+    """Residual in Residual Dense Block."""
 
     def __init__(self, num_feat, num_grow_ch=32):
         super(RRDB, self).__init__()

@@ -1,6 +1,6 @@
-import image_clean
+import image_zoom
 
-# image_clean.image_client("TAI", "images/*.png", "output")
-# image_clean.image_server("TAI")
+# image_zoom.image_client("TAI", "images/*.png", "output")
+# image_zoom.image_server("TAI")
 
-image_clean.image_predict("images/*.png", "output")
+image_zoom.image_predict("images/*.png", "output")
