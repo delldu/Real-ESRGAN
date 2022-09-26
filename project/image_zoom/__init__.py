@@ -57,7 +57,7 @@ def model_forward(model, device, input_tensor, multi_times=1):
         output_tensor = todos.model.forward(model, device, input_tensor)
     torch.cuda.synchronize()
 
-    return output_tensor[:, :, 0:H, 0:W]
+    return output_tensor[:, :, 0 : 4 * H, 0 : 4 * W]
 
 
 def image_client(name, input_files, output_dir):
@@ -111,7 +111,9 @@ def image_predict(input_files, output_dir):
         predict_tensor = model_forward(model, device, input_tensor)
         output_file = f"{output_dir}/{os.path.basename(filename)}"
 
-        todos.data.save_tensor([predict_tensor], output_file)
+        B, C, H, W = input_tensor.shape
+        orig_tensor = todos.data.resize_tensor(input_tensor, 4 * H, 4 * W)
+        todos.data.save_tensor([orig_tensor, predict_tensor], output_file)
 
 
 def video_service(input_file, output_file, targ):
