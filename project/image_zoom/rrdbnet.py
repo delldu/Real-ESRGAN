@@ -115,12 +115,13 @@ class RRDBNet(nn.Module):
         feat = self.conv_first(feat)
         body_feat = self.conv_body(self.body(feat))
         feat = feat + body_feat
+
         # upsample
         feat = self.lrelu(self.conv_up1(F.interpolate(feat, scale_factor=2.0, mode="bicubic", align_corners=True)))
         feat = self.lrelu(self.conv_up2(F.interpolate(feat, scale_factor=2.0, mode="bicubic", align_corners=True)))
         out = self.conv_last(self.lrelu(self.conv_hr(feat)))
+        out = out.clamp(0.0, 1.0)
 
         if self.scale > 1:
             alpha = F.interpolate(alpha, scale_factor=float(self.scale), mode="bicubic", align_corners=True)
-
-        return torch.cat((out.clamp(0.0, 1.0), alpha), dim=1)
+        return torch.cat((out, alpha), dim=1)

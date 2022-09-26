@@ -12,7 +12,6 @@
 __version__ = "1.0.0"
 
 import os
-import time
 from tqdm import tqdm
 import torch
 
@@ -37,6 +36,7 @@ def get_model():
     model = model.to(device)
     model.eval()
 
+    print(f"Running on {device} ...")
     model = torch.jit.script(model)
 
     todos.data.mkdir("output")
@@ -46,12 +46,18 @@ def get_model():
     return model, device
 
 
-def model_forward(model, device, input_tensor):
-    input_tensor = input_tensor.to(device)
-    with torch.no_grad():
-        output_tensor = model(input_tensor)
+def model_forward(model, device, input_tensor, multi_times=1):
+    # zeropad for model
+    H, W = input_tensor.size(2), input_tensor.size(3)
+    if H % multi_times != 0 or W % multi_times != 0:
+        input_tensor = todos.data.zeropad_tensor(input_tensor, times=multi_times)
 
-    return output_tensor
+    torch.cuda.synchronize()
+    with torch.jit.optimized_execution(False):
+        output_tensor = todos.model.forward(model, device, input_tensor)
+    torch.cuda.synchronize()
+
+    return output_tensor[:, :, 0:H, 0:W]
 
 
 def image_client(name, input_files, output_dir):
