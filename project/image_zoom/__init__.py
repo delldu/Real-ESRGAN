@@ -52,10 +52,7 @@ def model_forward(model, device, input_tensor, multi_times=1):
     if H % multi_times != 0 or W % multi_times != 0:
         input_tensor = todos.data.zeropad_tensor(input_tensor, times=multi_times)
 
-    torch.cuda.synchronize()
-    with torch.jit.optimized_execution(False):
-        output_tensor = todos.model.forward(model, device, input_tensor)
-    torch.cuda.synchronize()
+    output_tensor = todos.model.forward(model, device, input_tensor)
 
     return output_tensor[:, :, 0 : 4 * H, 0 : 4 * W]
 
@@ -76,7 +73,7 @@ def image_server(name, host="localhost", port=6379):
     model, device = get_model()
 
     def do_service(input_file, output_file, targ):
-        print(f"  zoom {input_file} ...")
+        print(f"  zoom4x {input_file} ...")
         try:
             input_tensor = todos.data.load_rgba_tensor(input_file)
             output_tensor = model_forward(model, device, input_tensor)
@@ -114,7 +111,7 @@ def image_predict(input_files, output_dir):
         B, C, H, W = input_tensor.shape
         orig_tensor = todos.data.resize_tensor(input_tensor, 4 * H, 4 * W)
         todos.data.save_tensor([orig_tensor, predict_tensor], output_file)
-
+    todos.model.reset_device()
 
 def video_service(input_file, output_file, targ):
     # load video
@@ -130,7 +127,7 @@ def video_service(input_file, output_file, targ):
     # load model
     model, device = get_model()
 
-    print(f"  zoom {input_file}, save to {output_file} ...")
+    print(f"  zoom4x {input_file}, save to {output_file} ...")
     progress_bar = tqdm(total=video.n_frames)
 
     def zoom_video_frame(no, data):
@@ -154,6 +151,8 @@ def video_service(input_file, output_file, targ):
     for i in range(video.n_frames):
         temp_output_file = "{}/{:06d}.png".format(output_dir, i)
         os.remove(temp_output_file)
+    os.removedirs(output_dir)
+    todos.model.reset_device()
 
     return True
 

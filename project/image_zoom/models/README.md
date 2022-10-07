@@ -1,1 +1,1 @@
-87bd66a5e0f9ccdc57e6be0f41692d2b  image_clean.pth
+87bd66a5e0f9ccdc57e6be0f41692d2b  image_zoom.pth

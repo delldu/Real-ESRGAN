@@ -9,7 +9,6 @@
 # ***
 # ************************************************************************************/
 #
-
 import torch
 from torch import nn as nn
 from torch.nn import functional as F
@@ -83,7 +82,6 @@ class RRDBNet(nn.Module):
 
     ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks.
     """
-
     def __init__(self, num_in_ch, num_out_ch, scale=4, num_feat=64, num_block=23, num_grow_ch=32):
         super(RRDBNet, self).__init__()
         self.scale = scale
@@ -103,8 +101,11 @@ class RRDBNet(nn.Module):
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
     def forward(self, input):
+        B, C, H, W = input.size()
+        assert C == 4, "input must be RGBA format"
+
         x = input[:, 0:3, :, :]
-        alpha = input[:, 3:, :, :]
+        alpha = input[:, 3:4, :, :]
 
         if self.scale == 2:
             feat = pixel_unshuffle(x, scale=2)
