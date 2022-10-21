@@ -121,14 +121,14 @@ class RRDBNet(nn.Module):
 
     def forward(self, x):
         # Define max GPU/CPU memory -- 8G
-        max_height = 1024
-        max_width = 1024
+        max_h = 800
+        max_W = 800
         multi_times = 1
 
         # Need Resize ?
         B, C, H, W = x.size()
-        if H > max_height or W > max_width:
-            s = min(max_height / H, max_width / W)
+        if H > max_h or W > max_W:
+            s = min(max_h / H, max_W / W)
             SH, SW = int(s * H), int(s * W)
             resize_x = F.interpolate(x, size=(SH, SW), mode="bilinear", align_corners=False)
         else:
@@ -145,7 +145,9 @@ class RRDBNet(nn.Module):
             resize_zeropad_x = resize_x
 
         # MS Begin
-        y = self.forward_x(resize_zeropad_x)
+        y = self.forward_x(resize_zeropad_x).cpu()
+        del resize_zeropad_x, resize_x # Release memory !!!
+
         y = y[:, :, 0 : 4 * ZH, 0 : 4 * ZW]  # Remove Zero Pads, 4 -- zoom 4x
         if ZH != H or ZW != W:
             y = F.interpolate(y, size=(4 * H, 4 * W), mode="bilinear", align_corners=False)
