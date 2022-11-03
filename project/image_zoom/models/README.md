@@ -1,1 +1,2 @@
-87bd66a5e0f9ccdc57e6be0f41692d2b  image_zoom.pth
+2eff76cd1b3d1b2a4589d00c56983352  image_zoom2x.pth
+87bd66a5e0f9ccdc57e6be0f41692d2b  image_zoom4x.pth
