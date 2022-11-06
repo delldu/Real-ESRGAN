@@ -9,7 +9,6 @@
 # ***
 # ************************************************************************************/
 #
-import math
 import torch
 from torch import nn as nn
 from torch.nn import functional as F
@@ -78,14 +77,18 @@ class RRDB(nn.Module):
 
 
 class RRDBNet(nn.Module):
-    """Networks consisting of Residual in Residual Dense Block, which is used
-    in ESRGAN.
-
+    """Networks consisting of Residual in Residual Dense Block, which is used in ESRGAN.
     ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks.
     """
 
     def __init__(self, num_in_ch, num_out_ch, scale=4, num_feat=64, num_block=23, num_grow_ch=32):
         super(RRDBNet, self).__init__()
+        # Define max GPU/CPU memory -- 7G(2x: 1024x1024, 4x out of cuda memory !!!)
+        # 4X: 800x800 --> 9G, 720x720 --> 8G
+        self.MAX_H = 800
+        self.MAX_W = 800
+        self.MAX_TIMES = 8
+
         self.scale = scale
         if scale == 2:
             num_in_ch = num_in_ch * 4
@@ -120,42 +123,31 @@ class RRDBNet(nn.Module):
         return out.clamp(0.0, 1.0)
 
     def forward(self, x):
-        # Define max GPU/CPU memory -- 8G
-        max_h = 1024
-        max_W = 1024
-        multi_times = 2
-
         # Need Resize ?
         B, C, H, W = x.size()
-        if H > max_h or W > max_W:
-            s = min(max_h / H, max_W / W)
+        if H > self.MAX_H or W > self.MAX_W:
+            s = min(self.MAX_H / H, self.MAX_W / W)
             SH, SW = int(s * H), int(s * W)
             resize_x = F.interpolate(x, size=(SH, SW), mode="bilinear", align_corners=False)
         else:
             resize_x = x
 
-        # Need Zero Pad ?
-        ZH, ZW = resize_x.size(2), resize_x.size(3)
-        if ZH % multi_times != 0 or ZW % multi_times != 0:
-            NH = multi_times * math.ceil(ZH / multi_times)
-            NW = multi_times * math.ceil(ZW / multi_times)
-            resize_zeropad_x = resize_x.new_zeros(B, C, NH, NW)
-            resize_zeropad_x[:, :, 0:ZH, 0:ZW] = resize_x
+        # Need Pad ?
+        PH, PW = resize_x.size(2), resize_x.size(3)
+        if PH % self.MAX_TIMES != 0 or PW % self.MAX_TIMES != 0:
+            r_pad = self.MAX_TIMES - (PW % self.MAX_TIMES)
+            b_pad = self.MAX_TIMES - (PH % self.MAX_TIMES)
+            resize_pad_x = F.pad(resize_x, (0, r_pad, 0, b_pad), mode="replicate")
         else:
-            resize_zeropad_x = resize_x
+            resize_pad_x = resize_x
 
-        # MS Begin
-        y = self.forward_x(resize_zeropad_x).cpu()
-        del resize_zeropad_x, resize_x  # Release memory !!!
+        y = self.forward_x(resize_pad_x)
 
         if self.scale == 4:
-            y = y[:, :, 0 : 4 * ZH, 0 : 4 * ZW]  # Remove Zero Pads, 4 -- zoom 4x
-            if ZH != H or ZW != W:
-                y = F.interpolate(y, size=(4 * H, 4 * W), mode="bilinear", align_corners=False)
+            y = y[:, :, 0 : 4 * PH, 0 : 4 * PW]  # Remove Zero Pads, 4 -- zoom 4x
+            y = F.interpolate(y, size=(4 * H, 4 * W), mode="bilinear", align_corners=False)
         else:  # Zoom2x
-            y = y[:, :, 0 : 2 * ZH, 0 : 2 * ZW]  # Remove Zero Pads, 2 -- zoom 2x
-            if ZH != H or ZW != W:
-                y = F.interpolate(y, size=(2 * H, 2 * W), mode="bilinear", align_corners=False)
-        # MS End
+            y = y[:, :, 0 : 2 * PH, 0 : 2 * PW]  # Remove Zero Pads, 2 -- zoom 2x
+            y = F.interpolate(y, size=(2 * H, 2 * W), mode="bilinear", align_corners=False)
 
         return y
