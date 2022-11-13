@@ -21,15 +21,29 @@ from . import rrdbnet
 import pdb
 
 
+def get_tvm_model():
+    """
+    TVM model base on torch.jit.trace
+    """
+
+    model = rrdbnet.RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
+    model.load_weights(model_path="models/image_zoom2x.pth")
+
+    device = todos.model.get_device()
+    model = model.to(device)
+    model.eval()
+    print(f"Running tvm model model on {device} ...")
+
+    return model, device
+
+
+
 def get_zoom2x_model():
     """Create model."""
 
-    model_path = "models/image_zoom2x.pth"
-    cdir = os.path.dirname(__file__)
-    checkpoint = model_path if cdir == "" else cdir + "/" + model_path
-
     model = rrdbnet.RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
-    todos.model.load(model, checkpoint)
+    model.load_weights(model_path="models/image_zoom2x.pth")
+    model = todos.model.ResizePadModel(model, scale=2)
 
     device = todos.model.get_device()
     model = model.to(device)
@@ -48,12 +62,10 @@ def get_zoom2x_model():
 def get_zoom4x_model():
     """Create model."""
 
-    model_path = "models/image_zoom4x.pth"
-    cdir = os.path.dirname(__file__)
-    checkpoint = model_path if cdir == "" else cdir + "/" + model_path
-
     model = rrdbnet.RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
-    todos.model.load(model, checkpoint)
+    model.load_weights(model_path="models/image_zoom4x.pth")
+    model = todos.model.ResizePadModel(model, scale=4)
+
     device = todos.model.get_device()
     model = model.to(device)
     model.eval()

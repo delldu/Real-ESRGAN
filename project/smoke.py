@@ -15,6 +15,8 @@ import time
 import random
 import torch
 
+import todos
+
 import image_zoom
 
 from tqdm import tqdm
@@ -28,7 +30,7 @@ def test_zoom_model(scale=2):
         model, device = image_zoom.get_zoom4x_model()
 
     N = 100
-    B, C, H, W = 1, 3, 1024, 1024
+    B, C, H, W = 1, 3, model.max_h, model.max_w
 
     mean_time = 0
     progress_bar = tqdm(total=N)
@@ -41,16 +43,18 @@ def test_zoom_model(scale=2):
         # print("x: ", x.size())
 
         start_time = time.time()
-        with torch.jit.optimized_execution(False):
-            with torch.no_grad():
-                y = model(x.to(device))
-        torch.cuda.synchronize()
+        y = model(x.to(device))
         mean_time += time.time() - start_time
 
     mean_time /= N
     print(f"Mean spend {mean_time:0.4f} seconds")
     os.system("nvidia-smi | grep python")
+    todos.model.reset_device()
 
 
 if __name__ == "__main__":
-    test_zoom_model(2)
+    # print("Zoom 2x: ")
+    # test_zoom_model(2)
+
+    print("Zoom 4x: ")
+    test_zoom_model(4)

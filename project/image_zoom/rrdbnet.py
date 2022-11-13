@@ -9,6 +9,7 @@
 # ***
 # ************************************************************************************/
 #
+import os
 import torch
 from torch import nn as nn
 from torch.nn import functional as F
@@ -54,7 +55,7 @@ class ResidualDenseBlock(nn.Module):
         x2 = self.lrelu(self.conv2(torch.cat((x, x1), 1)))
         x3 = self.lrelu(self.conv3(torch.cat((x, x1, x2), 1)))
         x4 = self.lrelu(self.conv4(torch.cat((x, x1, x2, x3), 1)))
-        x5 = self.conv5(torch.cat((x, x1, x2, x3, x4), 1))
+        x5 = self.conv5(torch.cat((x, x1, x2, x3, x4), dim=1))
         # Empirically, we use 0.2 to scale the residual for better performance
         return x5 * 0.2 + x
 
@@ -83,8 +84,9 @@ class RRDBNet(nn.Module):
 
     def __init__(self, num_in_ch, num_out_ch, scale=4, num_feat=64, num_block=23, num_grow_ch=32):
         super(RRDBNet, self).__init__()
-        # Define max GPU/CPU memory -- 7G(2x: 1024x1024, 4x out of cuda memory !!!)
-        # 4X: 800x800 --> 9G, 720x720 --> 8G
+        # Define max GPU/CPU memory
+        #  -- 800x800, 2x: 5G, 4x: 10G
+        #  -- 1024x1024, 2x: 5G, 4x: cuda out memory
         self.MAX_H = 800
         self.MAX_W = 800
         self.MAX_TIMES = 8
@@ -105,7 +107,14 @@ class RRDBNet(nn.Module):
 
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
-    def forward_x(self, x):
+
+    def load_weights(self, model_path="models/image_zoom2x.pth"):
+        cdir = os.path.dirname(__file__)
+        checkpoint = model_path if cdir == "" else cdir + "/" + model_path
+        self.load_state_dict(torch.load(checkpoint))
+
+
+    def forward(self, x):
         if self.scale == 2:
             feat = pixel_unshuffle(x, scale=2)
         elif self.scale == 1:
@@ -114,40 +123,10 @@ class RRDBNet(nn.Module):
             feat = x
         feat = self.conv_first(feat)
         body_feat = self.conv_body(self.body(feat))
-        feat = feat + body_feat
+        feat += body_feat
 
         # upsample
         feat = self.lrelu(self.conv_up1(F.interpolate(feat, scale_factor=2.0, mode="bicubic", align_corners=True)))
         feat = self.lrelu(self.conv_up2(F.interpolate(feat, scale_factor=2.0, mode="bicubic", align_corners=True)))
         out = self.conv_last(self.lrelu(self.conv_hr(feat)))
         return out.clamp(0.0, 1.0)
-
-    def forward(self, x):
-        # Need Resize ?
-        B, C, H, W = x.size()
-        if H > self.MAX_H or W > self.MAX_W:
-            s = min(self.MAX_H / H, self.MAX_W / W)
-            SH, SW = int(s * H), int(s * W)
-            resize_x = F.interpolate(x, size=(SH, SW), mode="bilinear", align_corners=False)
-        else:
-            resize_x = x
-
-        # Need Pad ?
-        PH, PW = resize_x.size(2), resize_x.size(3)
-        if PH % self.MAX_TIMES != 0 or PW % self.MAX_TIMES != 0:
-            r_pad = self.MAX_TIMES - (PW % self.MAX_TIMES)
-            b_pad = self.MAX_TIMES - (PH % self.MAX_TIMES)
-            resize_pad_x = F.pad(resize_x, (0, r_pad, 0, b_pad), mode="replicate")
-        else:
-            resize_pad_x = resize_x
-
-        y = self.forward_x(resize_pad_x)
-
-        if self.scale == 4:
-            y = y[:, :, 0 : 4 * PH, 0 : 4 * PW]  # Remove Zero Pads, 4 -- zoom 4x
-            y = F.interpolate(y, size=(4 * H, 4 * W), mode="bilinear", align_corners=False)
-        else:  # Zoom2x
-            y = y[:, :, 0 : 2 * PH, 0 : 2 * PW]  # Remove Zero Pads, 2 -- zoom 2x
-            y = F.interpolate(y, size=(2 * H, 2 * W), mode="bilinear", align_corners=False)
-
-        return y
