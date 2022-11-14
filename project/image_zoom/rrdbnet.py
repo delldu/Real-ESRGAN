@@ -87,9 +87,10 @@ class RRDBNet(nn.Module):
         # Define max GPU/CPU memory
         #  -- 800x800, 2x: 5G, 4x: 10G
         #  -- 1024x1024, 2x: 5G, 4x: cuda out memory
-        self.MAX_H = 800
-        self.MAX_W = 800
+        self.MAX_H = 640
+        self.MAX_W = 1024
         self.MAX_TIMES = 8
+        # GPU 4K -- 8G, 2500ms
 
         self.scale = scale
         if scale == 2:

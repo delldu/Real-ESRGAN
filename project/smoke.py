@@ -43,7 +43,7 @@ def test_zoom_model(scale=2):
         # print("x: ", x.size())
 
         start_time = time.time()
-        y = model(x.to(device))
+        y = todos.model.forward(model, device, x)
         mean_time += time.time() - start_time
 
     mean_time /= N
