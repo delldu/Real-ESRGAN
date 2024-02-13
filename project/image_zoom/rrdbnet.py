@@ -13,6 +13,7 @@ import os
 import torch
 from torch import nn as nn
 from torch.nn import functional as F
+import ggml_engine
 import pdb
 
 def pixel_unshuffle(x, scale: int):
@@ -91,6 +92,7 @@ class RRDBNet(nn.Module):
         else: # scale == 2
             self.MAX_H = 2048
             self.MAX_W = 2048
+
         self.MAX_TIMES = scale
         # GPU 4K -- 10G, 2600ms on half mode
 
@@ -112,10 +114,11 @@ class RRDBNet(nn.Module):
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
         self.load_weights(model_path=f"models/{model_name}.pth")
-        self.half()
+        # self.half()
 
-    def on_cuda(self):
-        return self.conv_first.weight.is_cuda # model is on cuda ? 
+
+    # def on_cuda(self):
+    #     return self.conv_first.weight.is_cuda # model is on cuda ? 
 
     def load_weights(self, model_path="models/image_zoom4x.pth"):
         cdir = os.path.dirname(__file__)
@@ -199,7 +202,7 @@ class SRVGGNetCompact(nn.Module):
         self.upsampler = nn.PixelShuffle(upscale)
 
         self.load_weights(model_path=f"models/{model_name}.pth")
-        self.half()
+        # self.half()
 
     def load_weights(self, model_path="models/video_anime4x.pth"):
         cdir = os.path.dirname(__file__)
@@ -208,8 +211,8 @@ class SRVGGNetCompact(nn.Module):
         sd = torch.load(checkpoint)
         self.load_state_dict(sd['params'])
 
-    def on_cuda(self):
-        return self.body[0].weight.is_cuda # model is on cuda ? 
+    # def on_cuda(self):
+    #     return self.body[0].weight.is_cuda # model is on cuda ? 
 
     def forward(self, x):
         out = x
@@ -235,7 +238,7 @@ class SRVGGNetDenoise(nn.Module):
         self.model1 = SRVGGNetCompact("image_denoise1", num_conv=32)
         self.model2 = SRVGGNetCompact("image_denoise2", num_conv=32)
 
-        self.half()
+        # self.half()
 
     def on_cuda(self):
         return self.model1.body[0].weight.is_cuda # model is on cuda ? 
@@ -252,3 +255,4 @@ class SRVGGNetDenoise(nn.Module):
         base = F.interpolate(x, scale_factor=self.model1.upscale, mode='nearest')
         out += base
         return out.float()
+

@@ -38,7 +38,7 @@ def test_input_shape():
     model, device = image_zoom.get_image_zoom4x_model()
 
     N = 100
-    B, C, H, W = 1, 3, model.MAX_H, model.MAX_W
+    B, C, H, W = 1, 3, model.max_h, model.max_w
 
     mean_time = 0
     progress_bar = tqdm(total=N)
@@ -49,8 +49,8 @@ def test_input_shape():
         w = random.randint(-16, 16)
         x = torch.randn(B, C, H + h, W + w)
         # print("x: ", x.size())
-        if 'cuda' in str(device.type):
-            x = x.half()
+        # if 'cuda' in str(device.type):
+        #     x = x.half()
 
         start_time = time.time()
         with torch.no_grad():
@@ -68,15 +68,15 @@ def run_bench_mark():
 
     model, device = image_zoom.get_image_zoom4x_model()
     N = 100
-    B, C, H, W = 1, 3, model.MAX_H, model.MAX_W
+    B, C, H, W = 1, 3, model.max_h, model.max_w
 
     with torch.profiler.profile(
         activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA]
     ) as p:
         for ii in range(N):
             image = torch.randn(B, C, H, W)
-            if 'cuda' in str(device.type):
-                image = image.half()
+            # if 'cuda' in str(device.type):
+            #     image = image.half()
 
             with torch.no_grad():
                 y = model(image.to(device))
@@ -96,13 +96,13 @@ def export_onnx_model():
 
     # 1. Run torch model
     model, device = image_zoom.get_image_zoom4x_model()
-    B, C, H, W = 1, 3, model.MAX_H, model.MAX_W
+    B, C, H, W = 1, 3, model.max_h, model.max_w
     model.to(device)
 
 
     dummy_input = torch.randn(B, C, H, W).to(device)
-    if 'cuda' in str(device.type):
-        dummy_input = dummy_input.half()
+    # if 'cuda' in str(device.type):
+    #     dummy_input = dummy_input.half()
 
     with torch.no_grad():
         dummy_output = model(dummy_input)
