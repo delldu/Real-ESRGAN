@@ -5,6 +5,7 @@
 ***	File Author: Dell, Tue 30 Jan 2024 11:53:11 PM CST
 ***
 ************************************************************************************/
+// https://github.com/ggerganov/ggml/pull/72
 
 #include "../include/ggml_engine.h"
 
@@ -28,6 +29,7 @@
 #include <vector>
 
 #include <float.h>
+#include <stdlib.h>
 
 #define MAX_ENG_ARGC 8
 
@@ -61,7 +63,7 @@
 #define for_each_context_tensor(ctx)                                                                                   \
     for (struct ggml_tensor* t = ggml_get_first_tensor(ctx); t != NULL; t = ggml_get_next_tensor(ctx, t))
 
-#define MAKE_ENG_ARGV_NAME(name, i) snprintf(name, sizeof(name), "eng_argv_%d", i)
+#define MAKE_INPUT_NAME(name, i) snprintf(name, sizeof(name), "ggml_engine_input_%02d", i)
 
 static struct ggml_context* create_context(size_t mem_size, bool static_alloc);
 static char* find_model_path(const char* model_name);
@@ -82,7 +84,6 @@ static void backend_exit(GGMLEngine* eng);
 static bool load_weight_from_gguf(GGMLEngine* eng);
 
 static const char* backend_name(int b);
-static void set_cpu_threads(GGMLEngine* eng);
 
 // --------------------------------------------------------------------------------------
 void GGMLNetwork::set_device(int device)
@@ -134,7 +135,7 @@ bool GGMLNetwork::network_init()
         create_weight_tensors(temp_context);
 
         eng->num_tensors = 0;
-        eng->backend_buffer_size = 10 * 1024 * 1024; // 100M for padding
+        eng->backend_buffer_size = 10 * 1024 * 1024; // 10M for padding
         for_each_context_tensor(temp_context)
         {
             eng->num_tensors++;
@@ -194,9 +195,18 @@ static bool backend_init(GGMLEngine* eng)
         ggml_tallocr_free(alloc);
     }
 
-    // Get CPU threads ...
+    // Set CPU threads ...
     {
         eng->cpu_threads = MAX(std::thread::hardware_concurrency() / 2, 1);
+
+        if (ggml_backend_is_cpu(eng->backend)) {
+            ggml_backend_cpu_set_n_threads(eng->backend, eng->cpu_threads);
+        }
+#ifdef GGML_USE_METAL
+        if (ggml_backend_is_metal(eng->backend)) {
+            ggml_backend_metal_set_n_cb(eng->backend, eng->cpu_threads);
+        }
+#endif
     }
 
     return true;
@@ -298,7 +308,7 @@ static bool load_weight_from_gguf(GGMLEngine* eng)
         for_each_context_tensor(weight.context)
         {
             if (memcmp(t->name, eng->weight_prefix, prefix_len) != 0) {
-                syslog_info("Skip '%s' for mismatch '%s' ...", t->name, eng->weight_prefix);
+                syslog_debug("Skip '%s' for mismatch '%s' ...", t->name, eng->weight_prefix);
                 continue;
             }
 
@@ -307,7 +317,7 @@ static bool load_weight_from_gguf(GGMLEngine* eng)
             if (destion_tensor == NULL) {
                  // Skip empty name for it maybe gguf whole data
                 if (strlen(t->name + prefix_len) > 0)
-                    syslog_info("Skip '%s' for not defined in network ...", t->name + prefix_len);
+                    syslog_debug("Skip '%s' for not defined in network ...", t->name + prefix_len);
                 continue;
             }
             if (!ggml_are_same_shape(destion_tensor, t)) {
@@ -341,7 +351,7 @@ static bool load_weight_from_gguf(GGMLEngine* eng)
                 }
                 free(temp_data);
             }
-            syslog_info("Loading %s ... OK", destion_tensor->name);
+            syslog_debug("Loading %s ... OK", destion_tensor->name);
         }
     }
 
@@ -355,45 +365,15 @@ static bool load_weight_from_gguf(GGMLEngine* eng)
     return true;
 }
 
-#if 0
-struct ggml_cgraph * build_graph(const test_model& model) {
-    static size_t buf_size = ggml_tensor_overhead()*GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
-    static std::vector<uint8_t> buf(buf_size);
-
-    struct ggml_init_params params0 = {
-        /*.mem_size   =*/ buf_size,
-        /*.mem_buffer =*/ buf.data(),
-        /*.no_alloc   =*/ true, // the tensors will be allocated later by ggml_gallocr_alloc_graph()
-    };
-
-    // create a temporally context to build the graph
-    struct ggml_context * ctx0 = ggml_init(params0);
-
-    struct ggml_cgraph * gf = ggml_new_graph(ctx0);
-
-    // zT = x @ yT
-    struct ggml_tensor * result = ggml_mul_mat(ctx0, model.a, ggml_cont(ctx0, model.b));
-
-    // z = (zT)T
-    ggml_build_forward_expand(gf, ggml_cont(ctx0, ggml_transpose(ctx0, result)));
-
-    // delete the temporally context used to build the graph
-    ggml_free(ctx0);
-    return gf;
-}
-
-
-#endif
-
 struct ggml_cgraph* GGMLNetwork::build_graph(int eng_argc, TENSOR* eng_argv[])
 {
     char name[128];
-    struct ggml_tensor* eng_argv_[MAX_ENG_ARGC];
+    struct ggml_tensor* ggml_tensor_argv[MAX_ENG_ARGC];
 
     // GGMLEngine* eng = &m_ggml_engine;
     CHECK_POINT(eng_argc < MAX_ENG_ARGC);
 
-    static size_t buf_size = ggml_tensor_overhead() * this->get_graph_size() + ggml_graph_overhead();
+    static size_t buf_size = ggml_tensor_overhead() * this->get_graph_size() * 4 + ggml_graph_overhead();
     static std::vector<uint8_t> buf(buf_size);
 
     struct ggml_init_params params0 = {
@@ -405,36 +385,18 @@ struct ggml_cgraph* GGMLNetwork::build_graph(int eng_argc, TENSOR* eng_argv[])
     // Create a temporally context to build the graph
     struct ggml_context* graph_ctx = ggml_init(params0);
 
-    // Create x_ as backend of x
-    // for (int i = 0; i < eng_argc; i++) {
-    //     if (!ggml_backend_is_cpu(eng->backend)) {
-    //         eng_argv_[i] = ggml_dup_tensor(graph_ctx, eng_argv[i]); // gpu
-
-    //         // ggml_gallocr_free(eng->compute_allocr); // , eng_argv_[i]);
-
-    //         // if (!ggml_allocr_is_measure(eng->compute_allocr)) {
-    //         //     ggml_backend_tensor_set(eng_argv_[i], eng_argv[i]->data, 0, ggml_nbytes(eng_argv[i]));
-    //         // }
-    //         // if (eng->compute_buffer_size != 0)
-    //         if (! measure)
-    //             ggml_backend_tensor_set(eng_argv_[i], eng_argv[i]->data, 0, ggml_nbytes(eng_argv[i]));
-    //     } else {
-    //         eng_argv_[i] = eng_argv[i];
-    //     }
-    // }
-
     struct ggml_cgraph* gf = ggml_new_graph(graph_ctx);
 
     for (int i = 0; i < eng_argc; i++) {
         TENSOR *t = eng_argv[i];
-        eng_argv_[i] = ggml_new_tensor_4d(graph_ctx, GGML_TYPE_F32, 
+        ggml_tensor_argv[i] = ggml_new_tensor_4d(graph_ctx, GGML_TYPE_F32, 
             (int64_t)t->width, (int64_t)t->height, (int64_t)t->chan, (int64_t)t->batch);
-        MAKE_ENG_ARGV_NAME(name, i);
-        ggml_set_name(eng_argv_[i], name);
-        ggml_set_input(eng_argv_[i]);
+        MAKE_INPUT_NAME(name, i);
+        ggml_set_name(ggml_tensor_argv[i], name);
+        ggml_set_input(ggml_tensor_argv[i]);
     }
 
-    struct ggml_tensor* result = this->forward(graph_ctx, eng_argc, eng_argv_);
+    struct ggml_tensor* result = this->forward(graph_ctx, eng_argc, ggml_tensor_argv);
     ggml_set_name(result, "ggml_engine_output");
     ggml_set_output(result);
 
@@ -445,202 +407,54 @@ struct ggml_cgraph* GGMLNetwork::build_graph(int eng_argc, TENSOR* eng_argv[])
     return gf;
 }
 
-// struct ggml_tensor* GGMLNetwork::compute(int eng_argc, struct ggml_tensor* eng_argv[])
-// {
-//     CHECK_POINT(eng_argc < MAX_ENG_ARGC);
-
-//     GGMLEngine* eng = &m_ggml_engine;
-
-//     // Reset the allocator to free all the memory allocated during the previous inference
-//     // ggml_gallocr_reset(eng->compute_allocr);
-
-//     struct ggml_cgraph* gf = build_graph(eng_argc, eng_argv);
-
-//     // ggml_gallocr_alloc_graph(eng->compute_allocr, gf);
-
-//     ggml_backend_graph_compute(eng->backend, gf);
-
-//     // ggml_graph_print(gf);
-
-//     return gf->nodes[gf->n_nodes - 1];
-// }
-
 
 TENSOR* GGMLNetwork::execute_forward(int eng_argc, TENSOR* eng_argv[])
 {
     char name[128];
     CHECK_POINT(eng_argc < MAX_ENG_ARGC);
     struct ggml_tensor* x;
-    // struct ggml_context* compute_context = NULL;    
 
     GGMLEngine* eng = &m_ggml_engine;
 
-    // struct ggml_tensor* x[MAX_ENG_ARGC];
-    // // Set user input data to x
-    // {
-    //     size_t mem_size = 2 * 1024 * 1024;
-    //     for (int i = 0; i < eng_argc; i++) {
-    //         mem_size += eng_argv[i]->batch * eng_argv[i]->chan * eng_argv[i]->height * eng_argv[i]->width * sizeof(float);
-    //     }
-    //     // mem_size *= 4; // out_scale ---- 4
-
-    //     compute_context = create_context(mem_size, false); // dynamic
-    //     CHECK_POINT(compute_context);
-    //     for (int i = 0; i < eng_argc; i++) {
-    //         x[i] = ggml_new_tensor_4d(compute_context, GGML_TYPE_F32, (int64_t)eng_argv[i]->width, (int64_t)eng_argv[i]->height,
-    //             (int64_t)eng_argv[i]->chan, (int64_t)eng_argv[i]->batch);
-    //         // --------------------------------------------------------
-    //         if (!set_tensor_value(x[i], eng_argv[i], false)) { // false -- set x->data == input->data
-    //             ggml_free(compute_context);
-    //             return NULL;
-    //         }
-    //     }
-    // }
-
-    // // compute_init(eng_argc, x);
-
-    // // Do compute
-    // struct ggml_tensor* result = compute(eng_argc, x);
-
-    // TENSOR* output = get_tensor_value(result, true); // true -- get result from backend buffer
-
-    // if (compute_context) {
-    //     ggml_free(compute_context);
-    // }
-
-    // // compute_exit(&m_ggml_engine);
-
-
-#if 1
+    struct ggml_cgraph * gf = NULL;
     ggml_gallocr_t allocr = NULL;
-
     {
         allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(eng->backend));
 
-        //create the worst case graph for memory usage estimation
-        struct ggml_cgraph * gf = build_graph(eng_argc, eng_argv);
+        // Create the worst case graph for memory usage estimation
+        gf = build_graph(eng_argc, eng_argv);
 
-        // compute the required memory
-        ggml_gallocr_reserve(allocr, gf);
-        size_t mem_size = ggml_gallocr_get_buffer_size(allocr, 0);
-        // fprintf(stderr, "%s: compute buffer size: %.2f MB\n", __func__, mem_size/1024.0f/1024.0f);
+        // CHECK_POINT(ggml_gallocr_reserve(allocr, gf));
+        // size_t mem_size = ggml_gallocr_get_buffer_size(allocr, 0);
 
-        syslog_info("Compute buffer: %.2f M", mem_size/(1024.0*1024.0));
+        // syslog_info("Compute buffer: %.2f M", mem_size/(1024.0*1024.0));
     }
 
-    // struct ggml_tensor * result = compute(model, allocr);
-    struct ggml_cgraph * gf = build_graph(eng_argc, eng_argv);
+    // struct ggml_cgraph * gf = build_graph(eng_argc, eng_argv);
 
-    // allocate tensors
-    ggml_gallocr_alloc_graph(allocr, gf);
+    // Allocate tensors
+    CHECK_POINT(ggml_gallocr_alloc_graph(allocr, gf));
 
+    // Set input value to backend
     for (int i = 0; i < eng_argc; i++) {
-        MAKE_ENG_ARGV_NAME(name, i);
+        MAKE_INPUT_NAME(name, i);
         x = ggml_graph_get_tensor(gf, name);
         set_tensor_value(x, eng_argv[i], true);
     }
 
-    set_cpu_threads(eng);
+    CHECK_POINT(ggml_backend_graph_compute(eng->backend, gf));
 
-    ggml_backend_graph_compute(eng->backend, gf);
+    if (getenv("DEBUG")) {
+       ggml_graph_print(gf);
+    }
 
-    //ggml_graph_print(gf);
-
-    // in this case, the output tensor is the last one in the graph
     struct ggml_tensor* result = ggml_graph_get_tensor(gf, "ggml_engine_output"); // gf->nodes[gf->n_nodes - 1];
-
     TENSOR* output = get_tensor_value(result, true);
 
     ggml_gallocr_free(allocr);
 
-
-    // if (compute_context) {
-    //     ggml_free(compute_context);
-    // }
-
     return output;
-
-    // float* out_data = new float[ggml_nelements(result)];
-
-    // ggml_backend_tensor_get(result, out_data, 0, ggml_nbytes(result));
-#endif
 }
-
-#if 0
-struct ggml_tensor* compute(const test_model & model, ggml_gallocr_t allocr) {
-    struct ggml_cgraph * gf = build_graph(model);
-
-    // allocate tensors
-    ggml_gallocr_alloc_graph(allocr, gf);
-    int n_threads = 1;
-
-    if (ggml_backend_is_cpu(model.backend)) {
-        ggml_backend_cpu_set_n_threads(model.backend, n_threads);
-    }
-
-#ifdef GGML_USE_METAL
-    if (ggml_backend_is_metal(model.backend)) {
-        ggml_backend_metal_set_n_cb(model.backend, n_threads);
-    }
-#endif
-
-    ggml_backend_graph_compute(model.backend, gf);
-
-    //ggml_graph_print(gf);
-
-    // in this case, the output tensor is the last one in the graph
-    return gf->nodes[gf->n_nodes - 1];
-}
-#endif
-
-// bool GGMLNetwork::compute_init(int eng_argc, struct ggml_tensor* eng_argv[])
-// {
-//     GGMLEngine* eng = &m_ggml_engine;
-
-//     if (eng->compute_buffer_size == 0) {
-//         // Alignment required by the backend
-//         eng->compute_allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(eng->backend));
-//         // ggml_allocr_new_measure_from_backend(eng->backend);
-
-//         struct ggml_cgraph* gf = build_graph(eng_argc, eng_argv);
-
-
-//         ggml_gallocr_reserve(eng->compute_allocr, gf);
-//         eng->compute_buffer_size = ggml_gallocr_get_buffer_size(eng->compute_allocr, 0);
-
-
-//         // Compute the required memory
-//         // eng->compute_buffer_size = ggml_gallocr_alloc_graph(eng->compute_allocr, gf) + 1024 * 1024;
-
-//         // // Re-Create the allocator with the required memory
-//         // ggml_gallocr_free(eng->compute_allocr);
-
-//         syslog_info("Compute buffer: %.2f M", eng->compute_buffer_size / 1024.0 / 1024.0);
-
-//         eng->compute_buffer = ggml_backend_alloc_buffer(eng->backend, eng->compute_buffer_size);
-//         // eng->compute_allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(eng->backend));
-//         // ggml_gallocr_new(eng->compute_buffer);
-//     }
-
-//     check_point(eng->compute_allocr);
-//     check_point(eng->compute_buffer);
-
-//     return true;
-// }
-
-// static void compute_exit(GGMLEngine* eng)
-// {
-//     check_avoid(eng);
-//     if (eng->compute_allocr)
-//         ggml_gallocr_free(eng->compute_allocr);
-//     eng->compute_allocr = NULL;
-
-//     if (eng->compute_buffer)
-//         ggml_backend_buffer_free(eng->compute_buffer);
-//     eng->compute_buffer = NULL;
-
-//     eng->compute_buffer_size = 0;
-// }
 
 static char* find_model_path(const char* model_name)
 {
@@ -922,19 +736,4 @@ static struct ggml_context* create_context(size_t mem_size = 10 * 1024 * 1024, b
     CHECK_POINT(ctx);
 
     return ctx;
-}
-
-static void set_cpu_threads(GGMLEngine* eng)
-{
-    check_avoid(eng);
-
-    if (ggml_backend_is_cpu(eng->backend)) {
-        ggml_backend_cpu_set_n_threads(eng->backend, eng->cpu_threads);
-    }
-
-#ifdef GGML_USE_METAL
-    if (ggml_backend_is_metal(eng->backend)) {
-        ggml_backend_metal_set_n_cb(eng->backend, eng->cpu_threads);
-    }
-#endif
 }

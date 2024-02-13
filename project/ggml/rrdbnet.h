@@ -152,13 +152,6 @@ struct RRDB {
         out = ggml_add(ctx, ggml_scale(ctx, out, 0.2), x);
 
         return out;
-
-        // out = self.rdb1(x)
-        // out = self.rdb2(out)
-        // out = self.rdb3(out)
-        // # Empirically, we use 0.2 to scale the residual for better performance
-        // return out * 0.2 + x
-
     }
 };
 
@@ -333,8 +326,8 @@ struct RRDB {
 
 struct RRDBNet : GGMLNetwork {
     // network hparams
-    int MAX_H = 1024;
-    int MAX_W = 1024;
+    int MAX_H = 512;
+    int MAX_W = 512;
     int MAX_TIMES = 4;
     int num_block = 6;
     int scale = 4;
@@ -386,7 +379,6 @@ struct RRDBNet : GGMLNetwork {
         set_tensor_name(conv_first_weight, prefix, "conv_first.weight");
         set_tensor_name(conv_first_bias, prefix, "conv_first.bias");
         snprintf(s, sizeof(s), "%s%s", prefix, "body.0.");
-
         body_0.setup_weight_names(s);
         snprintf(s, sizeof(s), "%s%s", prefix, "body.1.");
         body_1.setup_weight_names(s);
