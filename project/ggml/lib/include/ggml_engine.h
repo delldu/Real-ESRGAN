@@ -30,6 +30,7 @@ typedef struct {
     // Model weight
     const char* model_name = "";
     const char* weight_prefix = "";
+
 } GGMLEngine;
 
 typedef struct {
@@ -70,7 +71,7 @@ typedef struct {
 } GGMLNetwork;
 
 void dump_ggml_tensor(const char* prefix, struct ggml_tensor* tensor, bool more);
-void set_tensor_name(struct ggml_tensor* tensor, const char* prefix, const char* name);
+// void set_tensor_name(struct ggml_tensor* tensor, const char* prefix, const char* name);
 bool set_tensor_value(struct ggml_tensor* tensor, TENSOR* nt, bool to_backend); // nt -- nimage tensor
 TENSOR* get_tensor_value(struct ggml_tensor* tensor, bool from_backend);
 

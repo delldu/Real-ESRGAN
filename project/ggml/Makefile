@@ -21,13 +21,14 @@ LIBS	:= \
 	$(shell pkg-config nimage --libs) \
 	-L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas -lpthread -lm -lstdc++
 
-CXXFLAGS := -O3 -fPIC
+CXXFLAGS := -O2 -fPIC
 LDFLAGS := -fPIC
 
 #****************************************************************************
 # Makefile code common to all platforms
 #****************************************************************************
-DEFINES  := -DGGML_CUBLAS -D_GLIBCXX_USE_CXX11_ABI=1 -std=c++11 -std=gnu++11
+DEFINES  := -DGGML_CUBLAS
+# -D_GLIBCXX_USE_CXX11_ABI=1 -std=c++11 -std=gnu++11
 CXXFLAGS := ${CXXFLAGS} ${DEFINES}
 
 OBJECT := $(addsuffix .o,$(basename ${SOURCE}))

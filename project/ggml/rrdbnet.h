@@ -48,16 +48,16 @@ struct ResidualDenseBlock {
     }
 
     void setup_weight_names(char *prefix) {
-        set_tensor_name(conv1_weight, prefix, "conv1.weight");
-        set_tensor_name(conv1_bias, prefix, "conv1.bias");
-        set_tensor_name(conv2_weight, prefix, "conv2.weight");
-        set_tensor_name(conv2_bias, prefix, "conv2.bias");
-        set_tensor_name(conv3_weight, prefix, "conv3.weight");
-        set_tensor_name(conv3_bias, prefix, "conv3.bias");
-        set_tensor_name(conv4_weight, prefix, "conv4.weight");
-        set_tensor_name(conv4_bias, prefix, "conv4.bias");
-        set_tensor_name(conv5_weight, prefix, "conv5.weight");
-        set_tensor_name(conv5_bias, prefix, "conv5.bias");
+        ggml_format_name(conv1_weight, "%s%s", prefix, "conv1.weight");
+        ggml_format_name(conv1_bias, "%s%s", prefix, "conv1.bias");
+        ggml_format_name(conv2_weight, "%s%s", prefix, "conv2.weight");
+        ggml_format_name(conv2_bias, "%s%s", prefix, "conv2.bias");
+        ggml_format_name(conv3_weight, "%s%s", prefix, "conv3.weight");
+        ggml_format_name(conv3_bias, "%s%s", prefix, "conv3.bias");
+        ggml_format_name(conv4_weight, "%s%s", prefix, "conv4.weight");
+        ggml_format_name(conv4_bias, "%s%s", prefix, "conv4.bias");
+        ggml_format_name(conv5_weight, "%s%s", prefix, "conv5.weight");
+        ggml_format_name(conv5_bias, "%s%s", prefix, "conv5.bias");
     }
 
     struct ggml_tensor* forward(struct ggml_context* ctx, struct ggml_tensor* x) {
@@ -376,8 +376,8 @@ struct RRDBNet : GGMLNetwork {
 
     void setup_weight_names(char *prefix) {
         char s[512];
-        set_tensor_name(conv_first_weight, prefix, "conv_first.weight");
-        set_tensor_name(conv_first_bias, prefix, "conv_first.bias");
+        ggml_format_name(conv_first_weight, "%s%s", prefix, "conv_first.weight");
+        ggml_format_name(conv_first_bias, "%s%s", prefix, "conv_first.bias");
         snprintf(s, sizeof(s), "%s%s", prefix, "body.0.");
         body_0.setup_weight_names(s);
         snprintf(s, sizeof(s), "%s%s", prefix, "body.1.");
@@ -390,16 +390,16 @@ struct RRDBNet : GGMLNetwork {
         body_4.setup_weight_names(s);
         snprintf(s, sizeof(s), "%s%s", prefix, "body.5.");
         body_5.setup_weight_names(s);
-        set_tensor_name(conv_body_weight, prefix, "conv_body.weight");
-        set_tensor_name(conv_body_bias, prefix, "conv_body.bias");
-        set_tensor_name(conv_up1_weight, prefix, "conv_up1.weight");
-        set_tensor_name(conv_up1_bias, prefix, "conv_up1.bias");
-        set_tensor_name(conv_up2_weight, prefix, "conv_up2.weight");
-        set_tensor_name(conv_up2_bias, prefix, "conv_up2.bias");
-        set_tensor_name(conv_hr_weight, prefix, "conv_hr.weight");
-        set_tensor_name(conv_hr_bias, prefix, "conv_hr.bias");
-        set_tensor_name(conv_last_weight, prefix, "conv_last.weight");
-        set_tensor_name(conv_last_bias, prefix, "conv_last.bias");
+        ggml_format_name(conv_body_weight, "%s%s", prefix, "conv_body.weight");
+        ggml_format_name(conv_body_bias, "%s%s", prefix, "conv_body.bias");
+        ggml_format_name(conv_up1_weight, "%s%s", prefix, "conv_up1.weight");
+        ggml_format_name(conv_up1_bias, "%s%s", prefix, "conv_up1.bias");
+        ggml_format_name(conv_up2_weight, "%s%s", prefix, "conv_up2.weight");
+        ggml_format_name(conv_up2_bias, "%s%s", prefix, "conv_up2.bias");
+        ggml_format_name(conv_hr_weight, "%s%s", prefix, "conv_hr.weight");
+        ggml_format_name(conv_hr_bias, "%s%s", prefix, "conv_hr.bias");
+        ggml_format_name(conv_last_weight, "%s%s", prefix, "conv_last.weight");
+        ggml_format_name(conv_last_bias, "%s%s", prefix, "conv_last.bias");
     }
 
     struct ggml_tensor* forward(struct ggml_context* ctx, int eng_argc, struct ggml_tensor* eng_argv[]) {

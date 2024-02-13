@@ -61,7 +61,7 @@ int main(int argc, char **argv)
     // net.dump();
 
     // MS -- Modify Section ?
-    char *p, output_fname[1024];
+    char *p, output_fname[512];
     TENSOR *input_tensor, *output_tensor;
     TENSOR *tensor_argv[1];
 
