@@ -38,7 +38,7 @@ def test_input_shape():
     model, device = image_zoom.get_image_zoom4x_model()
 
     N = 100
-    B, C, H, W = 1, 3, model.max_h, model.max_w
+    B, C, H, W = 1, 3, model.MAX_H, model.MAX_W
 
     mean_time = 0
     progress_bar = tqdm(total=N)
@@ -55,7 +55,8 @@ def test_input_shape():
         start_time = time.time()
         with torch.no_grad():
             y = model(x.to(device))
-        torch.cuda.synchronize()
+        if 'cpu' not in str(device):
+            torch.cuda.synchronize()
         mean_time += time.time() - start_time
 
     mean_time /= N
@@ -68,7 +69,7 @@ def run_bench_mark():
 
     model, device = image_zoom.get_image_zoom4x_model()
     N = 100
-    B, C, H, W = 1, 3, model.max_h, model.max_w
+    B, C, H, W = 1, 3, model.MAX_H, model.MAX_W
 
     with torch.profiler.profile(
         activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA]
@@ -80,25 +81,32 @@ def run_bench_mark():
 
             with torch.no_grad():
                 y = model(image.to(device))
-            torch.cuda.synchronize()
+            if 'cpu' not in str(device):
+                torch.cuda.synchronize()
         p.step()
 
     print(p.key_averages().table(sort_by="self_cuda_time_total", row_limit=-1))
     os.system("nvidia-smi | grep python")
 
 
-def export_onnx_model():
+def export_onnx_model(model_name="zoom4x"):
     import onnx
     import onnxruntime
-    from onnxsim import simplify
+    # from onnxsim import simplify
+    import onnxoptimizer
 
     print("Export onnx model ...")
 
     # 1. Run torch model
-    model, device = image_zoom.get_image_zoom4x_model()
-    B, C, H, W = 1, 3, model.max_h, model.max_w
-    model.to(device)
+    if model_name == "zoom4x":
+        model, device = image_zoom.get_image_zoom4x_model()
+    if model_name == "zoom2x":
+        model, device = image_zoom.get_image_zoom2x_model()
+    if model_name == "anime4x":
+        model, device = image_zoom.get_image_anime4x_model()
 
+    B, C, H, W = 1, 3, 256, 256 # model.MAX_H, model.MAX_W
+    model.to(device)
 
     dummy_input = torch.randn(B, C, H, W).to(device)
     # if 'cuda' in str(device.type):
@@ -111,20 +119,36 @@ def export_onnx_model():
     # 2. Export onnx model
     input_names = [ "input" ]
     output_names = [ "output" ]
-    onnx_filename = "output/image_zoom4x.onnx"
+    dynamic_axes = { 
+        'input' : {2: 'height', 3: 'width'}, 
+        'output' : {2: 'height', 3: 'width'} 
+    }
+
+    if model_name == "zoom4x":
+        onnx_filename = "output/image_zoom4x.onnx"
+    if model_name == "zoom2x":
+        onnx_filename = "output/image_zoom2x.onnx"
+    if model_name == "anime4x":
+        onnx_filename = "output/image_anime4x.onnx"
 
     torch.onnx.export(model, dummy_input, onnx_filename, 
-        verbose=False, input_names=input_names, output_names=output_names)
-    del model
+        verbose=False,
+        input_names=input_names,
+        output_names=output_names,
+        dynamic_axes=dynamic_axes,
+    )
 
     # 3. Check onnx model file
     onnx_model = onnx.load(onnx_filename)
     onnx.checker.check_model(onnx_model)
 
-    onnx_model, check = simplify(onnx_model)
-    assert check, "Simplified ONNX model could not be validated"
-    onnx.save(onnx_model, onnx_filename)
+    # !!! onnxsim not support pixel_unshuffle !!! 
+    # onnx_model, check = simplify(onnx_model)
+    # assert check, "Simplified ONNX model could not be validated"
+    # onnx.save(onnx_model, onnx_filename)
     # print(onnx.helper.printable_graph(onnx_model.graph))
+    onnx_model = onnxoptimizer.optimize(onnx_model)
+    onnx.save(onnx_model, onnx_filename)
 
     # 4. Run onnx model
     if 'cuda' in device.type:
@@ -159,7 +183,10 @@ if __name__ == "__main__":
     if args.bench_mark:
         run_bench_mark()
     if args.export_onnx:
-        export_onnx_model()
+        # export DEVICE=cpu for OOM of cuda
+        export_onnx_model("zoom4x")
+        export_onnx_model("zoom2x")
+        export_onnx_model("anime4x")
     
     if not (args.shape_test or args.bench_mark or args.export_onnx):
         parser.print_help()

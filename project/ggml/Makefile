@@ -67,4 +67,4 @@ clean:
 
 format:
 	clang-format --style="{BasedOnStyle: WebKit, TabWidth: 4, IndentWidth: 4, ColumnLimit: 120}" \
-	-i lib/include/*.h lib/source/*.c main.cpp
+	-i lib/include/*.h lib/source/*.c main.cpp rrdbnet.h

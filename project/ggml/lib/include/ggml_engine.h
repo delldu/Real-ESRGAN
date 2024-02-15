@@ -9,9 +9,9 @@
 #ifndef _GGML_ENGINE_H
 #define _GGML_ENGINE_H
 
-#include <ggml.h>
 #include <ggml-alloc.h>
 #include <ggml-backend.h>
+#include <ggml.h>
 #include <nimage/image.h>
 
 // GGML Engine
@@ -23,14 +23,13 @@ typedef struct {
     struct ggml_context* context = NULL;
 
     // Backend
-    ggml_backend_t backend = NULL;
+    struct ggml_backend* backend = NULL;
     size_t backend_buffer_size = 0;
-    ggml_backend_buffer_t backend_buffer = NULL;
+    struct ggml_backend_buffer* backend_buffer = NULL;
 
     // Model weight
     const char* model_name = "";
     const char* weight_prefix = "";
-
 } GGMLEngine;
 
 typedef struct {
@@ -60,7 +59,7 @@ typedef struct {
 
     virtual size_t get_graph_size()
     {
-        return GGML_DEFAULT_GRAPH_SIZE; // 2048
+        return GGML_DEFAULT_GRAPH_SIZE;
     }
 
     // ------------------ private ------------------------------------------------------

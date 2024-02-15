@@ -87,10 +87,7 @@ static bool load_weight_from_gguf(GGMLEngine* eng);
 static const char* backend_name(int b);
 
 // --------------------------------------------------------------------------------------
-void GGMLNetwork::set_device(int device)
-{
-    m_ggml_engine.device = device;
-}
+void GGMLNetwork::set_device(int device) { m_ggml_engine.device = device; }
 
 bool GGMLNetwork::start_engine()
 {
@@ -155,7 +152,7 @@ bool GGMLNetwork::network_init()
                 eng->num_tensors);
 
             create_weight_tensors(eng->context);
-            setup_weight_names((char *)""); // prefix_name
+            setup_weight_names((char*)""); // prefix_name
         }
     }
 
@@ -191,9 +188,7 @@ static bool backend_init(GGMLEngine* eng)
     {
         struct ggml_tallocr* alloc = ggml_tallocr_new(eng->backend_buffer);
         check_point(alloc);
-        for_each_context_tensor(eng->context) {
-            ggml_tallocr_alloc(alloc, t);
-        }
+        for_each_context_tensor(eng->context) { ggml_tallocr_alloc(alloc, t); }
         ggml_tallocr_free(alloc);
     }
 
@@ -282,7 +277,7 @@ static bool load_weight_from_gguf(GGMLEngine* eng)
         };
 
         ctx_gguf = gguf_init_from_file(model_filename, params);
-        if (! ctx_gguf) {
+        if (!ctx_gguf) {
             syslog_error("Loading gguf file '%s'", model_filename);
             free(model_filename);
         }
@@ -317,7 +312,7 @@ static bool load_weight_from_gguf(GGMLEngine* eng)
             // Real name should be t->name + prefix_len !!!
             destion_tensor = ggml_get_tensor(eng->context, t->name + prefix_len);
             if (destion_tensor == NULL) {
-                 // Skip empty name for it maybe gguf whole data
+                // Skip empty name for it maybe gguf whole data
                 if (strlen(t->name + prefix_len) > 0)
                     syslog_debug("Skip '%s' for not defined in network ...", t->name + prefix_len);
                 continue;
@@ -387,13 +382,14 @@ struct ggml_cgraph* GGMLNetwork::build_graph(int eng_argc, TENSOR* eng_argv[])
     // Create a temporally context to build the graph
     struct ggml_context* graph_ctx = ggml_init(params0);
 
-    struct ggml_cgraph* gf = ggml_new_graph(graph_ctx);
-    // struct ggml_cgraph* gf = ggml_new_graph_custom(graph_ctx, this->get_graph_size(), true);
+    // https://github.com/ggerganov/ggml/issues/567
+    // struct ggml_cgraph* gf = ggml_new_graph(graph_ctx);
+    struct ggml_cgraph* gf = ggml_new_graph_custom(graph_ctx, this->get_graph_size(), false);
 
     for (int i = 0; i < eng_argc; i++) {
-        TENSOR *t = eng_argv[i];
-        ggml_tensor_argv[i] = ggml_new_tensor_4d(graph_ctx, GGML_TYPE_F32, 
-            (int64_t)t->width, (int64_t)t->height, (int64_t)t->chan, (int64_t)t->batch);
+        TENSOR* t = eng_argv[i];
+        ggml_tensor_argv[i] = ggml_new_tensor_4d(
+            graph_ctx, GGML_TYPE_F32, (int64_t)t->width, (int64_t)t->height, (int64_t)t->chan, (int64_t)t->batch);
         MAKE_INPUT_NAME(name, i);
         ggml_set_name(ggml_tensor_argv[i], name);
         ggml_set_input(ggml_tensor_argv[i]);
@@ -402,14 +398,12 @@ struct ggml_cgraph* GGMLNetwork::build_graph(int eng_argc, TENSOR* eng_argv[])
     struct ggml_tensor* result = this->forward(graph_ctx, eng_argc, ggml_tensor_argv);
     ggml_set_name(result, "ggml_engine_output");
     ggml_set_output(result);
-
     ggml_build_forward_expand(gf, result);
 
     // Delete the temporally context used to build the graph
     ggml_free(graph_ctx);
     return gf;
 }
-
 
 TENSOR* GGMLNetwork::execute_forward(int eng_argc, TENSOR* eng_argv[])
 {
@@ -421,7 +415,7 @@ TENSOR* GGMLNetwork::execute_forward(int eng_argc, TENSOR* eng_argv[])
     ggml_time_init();
     uint64_t start = ggml_time_ms();
 
-    struct ggml_cgraph * gf = NULL;
+    struct ggml_cgraph* gf = NULL;
     ggml_gallocr_t allocr = NULL;
     {
         allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(eng->backend));
@@ -432,16 +426,13 @@ TENSOR* GGMLNetwork::execute_forward(int eng_argc, TENSOR* eng_argv[])
         CHECK_POINT(ggml_gallocr_reserve(allocr, gf));
         size_t mem_size = ggml_gallocr_get_buffer_size(allocr, 0);
 
-        syslog_info("Compute buffer: %.2f M", mem_size/(1024.0*1024.0));
+        syslog_info("Compute buffer: %.2f M", mem_size / (1024.0 * 1024.0));
     }
 
-    CheckPoint("time pass: %ld ms", ggml_time_ms() - start);
     // gf = build_graph(eng_argc, eng_argv);
 
     // Allocate tensors
     CHECK_POINT(ggml_gallocr_alloc_graph(allocr, gf));
-    CheckPoint("time pass: %ld ms", ggml_time_ms() - start);
-
     // Set input value to backend
     for (int i = 0; i < eng_argc; i++) {
         MAKE_INPUT_NAME(name, i);
@@ -449,29 +440,25 @@ TENSOR* GGMLNetwork::execute_forward(int eng_argc, TENSOR* eng_argv[])
         set_tensor_value(x, eng_argv[i], true);
     }
 
-    CheckPoint("time pass: %ld ms, n_threads = %d", ggml_time_ms() - start, eng->cpu_threads);
-
     // Run the computation
     CHECK_POINT(ggml_backend_graph_compute(eng->backend, gf));
 
-    CheckPoint("time pass: %ld ms", ggml_time_ms() - start);
-
-    if (getenv("DEBUG")) {
-       ggml_graph_print(gf);
-    }
+    // ggml_graph_compute_with_ctx(ctx_work, gfi, n_threads);
 
     // Save output to nt tensor
     struct ggml_tensor* result = ggml_graph_get_tensor(gf, "ggml_engine_output"); // gf->nodes[gf->n_nodes - 1];
     CHECK_POINT(result);
-    dump_ggml_tensor("result", result, false);
+
+    if (getenv("DEBUG")) {
+        dump_ggml_tensor("Forward result", result, false);
+        ggml_graph_print(gf);
+    }
 
     TENSOR* output = get_tensor_value(result, true);
 
-    CheckPoint("time pass: %ld ms", ggml_time_ms() - start);
-
     ggml_gallocr_free(allocr);
 
-    CheckPoint("time pass: %ld ms", ggml_time_ms() - start);
+    syslog_info("Forward spend %ld ms.", ggml_time_ms() - start);
 
     return output;
 }
@@ -525,13 +512,6 @@ static struct ggml_backend* create_backend(int device, int* ok_device)
     return ggml_backend_cpu_init();
 }
 
-// void set_tensor_name(struct ggml_tensor* tensor, const char* prefix, const char* name)
-// {
-//     char full_name[1024];
-//     snprintf(full_name, sizeof(full_name), "%s%s", prefix, name);
-//     ggml_set_name(tensor, full_name);
-// }
-
 static const char* backend_name(int b)
 {
     if (b == 0)
@@ -552,12 +532,12 @@ void dump_ggml_tensor(const char* prefix, struct ggml_tensor* tensor, bool more 
 
     size_t len = 0;
     if (tensor->name) {
-        len += snprintf(output_buffer + len, sizeof(output_buffer) - len, "%s%s: %s, [%ld, %ld, %ld, %ld], %s", 
-            prefix, tensor->name, ggml_type_name(tensor->type), tensor->ne[0], tensor->ne[1], tensor->ne[2], tensor->ne[3],
+        len += snprintf(output_buffer + len, sizeof(output_buffer) - len, "%s%s: %s, [%ld, %ld, %ld, %ld], %s", prefix,
+            tensor->name, ggml_type_name(tensor->type), tensor->ne[0], tensor->ne[1], tensor->ne[2], tensor->ne[3],
             backend_name(tensor->backend));
     } else {
-        len += snprintf(output_buffer + len, sizeof(output_buffer) - len, "%s%s: %s, [%ld, %ld, %ld, %ld], %s", 
-            prefix, "none", ggml_type_name(tensor->type), tensor->ne[0], tensor->ne[1], tensor->ne[2], tensor->ne[3],
+        len += snprintf(output_buffer + len, sizeof(output_buffer) - len, "%s%s: %s, [%ld, %ld, %ld, %ld], %s", prefix,
+            "none", ggml_type_name(tensor->type), tensor->ne[0], tensor->ne[1], tensor->ne[2], tensor->ne[3],
             backend_name(tensor->backend));
     }
 
@@ -657,7 +637,6 @@ static bool set_f32_to_buffer(void* data, ggml_type dtype, size_t i, float value
     return true;
 }
 
-
 static bool data_type_valid(ggml_type dtype)
 {
     bool ok = (dtype == GGML_TYPE_I8 || dtype == GGML_TYPE_I16 || dtype == GGML_TYPE_I32 || dtype == GGML_TYPE_F16
@@ -696,7 +675,7 @@ TENSOR* get_tensor_value(struct ggml_tensor* tensor, bool from_backend = false)
 
     if (from_backend) {
         void* source_data = (void*)malloc(ggml_nbytes(tensor));
-        if (! source_data) {
+        if (!source_data) {
             tensor_destroy(nt);
         }
         CHECK_POINT(source_data);

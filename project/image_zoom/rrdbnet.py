@@ -13,20 +13,20 @@ import os
 import torch
 from torch import nn as nn
 from torch.nn import functional as F
-import ggml_engine
 import pdb
 
-def pixel_unshuffle(x, scale: int):
-    """Pixel unshuffle."""
-    b, c, hh, hw = x.size()
-    out_channel = int(c * (scale ** 2))
-    assert hh % scale == 0 and hw % scale == 0
-    h = hh // scale
-    w = hw // scale
-    x_view = x.view(b, c, h, scale, w, scale)
-    x_view = x_view.permute(0, 1, 3, 5, 2, 4)
+# def pixel_unshuffle(x, scale: int):
+#     """Pixel unshuffle."""
 
-    return x_view.reshape(b, out_channel, h, w)
+#     b, c, hh, hw = x.size()
+#     out_channel = int(c * (scale ** 2))
+#     assert hh % scale == 0 and hw % scale == 0
+#     h = hh // scale
+#     w = hw // scale
+#     x_view = x.view(b, c, h, scale, w, scale)
+#     x_view = x_view.permute(0, 1, 3, 5, 2, 4) # b, (c * scale * scale), h, w
+
+#     return x_view.reshape(b, out_channel, h, w).float()
 
 
 def make_layer(basic_block, num_basic_block, **kwarg):
@@ -82,19 +82,15 @@ class RRDB(nn.Module):
 class RRDBNet(nn.Module):
     def __init__(self, model_name, num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4):
         super().__init__()
-        # Define max GPU/CPU memory
-        #  -- 640x640, 4x: 6.4G, 1400ms
-        #  -- 800x800, 2x: 5G, 4x: 10G
-        #  -- 1024x1024, 4x: 10G, 4x: 270ms
+        # Define max GPU memory
+        #  -- 512x512, 4x: 5.4G, 1000ms
         if scale == 4:
+            self.MAX_H = 512
+            self.MAX_W = 512
+        else: # scale == 2
             self.MAX_H = 1024
             self.MAX_W = 1024
-        else: # scale == 2
-            self.MAX_H = 2048
-            self.MAX_W = 2048
-
         self.MAX_TIMES = scale
-        # GPU 4K -- 10G, 2600ms on half mode
 
         self.scale = scale
         if scale == 2:
@@ -112,10 +108,13 @@ class RRDBNet(nn.Module):
         self.conv_last = nn.Conv2d(num_feat, num_out_ch, 3, 1, 1)
 
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        if self.scale == 2:
+            self.unshffle = nn.PixelUnshuffle(self.scale)
+        else:
+            self.unshffle = nn.Identity()
 
         self.load_weights(model_path=f"models/{model_name}.pth")
         # self.half()
-
 
     # def on_cuda(self):
     #     return self.conv_first.weight.is_cuda # model is on cuda ? 
@@ -135,13 +134,9 @@ class RRDBNet(nn.Module):
         pad_w = self.scale - (W % self.scale)
         x = F.pad(x, (0, pad_w, 0, pad_h), 'reflect')
 
-        if self.scale == 2:
-            feat = pixel_unshuffle(x, scale=2)
-        elif self.scale == 1:
-            feat = pixel_unshuffle(x, scale=4)
-        else:
-            feat = x
+        feat = self.unshffle(x)
         feat = self.conv_first(feat)
+
         body_feat = self.conv_body(self.body(feat))
         feat = feat + body_feat
 

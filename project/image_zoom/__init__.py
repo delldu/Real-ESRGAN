@@ -24,7 +24,6 @@ import pdb
 def get_image_zoom2x_model():
     """Create model."""
     model = rrdbnet.RRDBNet("image_zoom2x", num_block=23, num_grow_ch=32, scale=2)
-    model = todos.model.ResizePadModel(model, scale=2)
 
     device = todos.model.get_device()
     model = model.to(device)
@@ -52,7 +51,6 @@ def get_image_zoom4x_model():
     """Create model."""
 
     model = rrdbnet.RRDBNet("image_zoom4x", num_block=23, num_grow_ch=32, scale=4)
-    model = todos.model.ResizePadModel(model, scale=4)
 
     # num_block=23, scale=4
 
@@ -82,7 +80,6 @@ def get_image_smooth4x_model():
     """Create model."""
 
     model = rrdbnet.RRDBNet("image_smooth4x", num_block=23, num_grow_ch=32, scale=4)
-    model = todos.model.ResizePadModel(model, scale=4)
 
     device = todos.model.get_device()
     model = model.to(device)
@@ -110,7 +107,6 @@ def get_image_anime4x_model():
     """Create model."""
 
     model = rrdbnet.RRDBNet("image_anime4x", num_block=6, num_grow_ch=32, scale=4)
-    model = todos.model.ResizePadModel(model, scale=4)
 
     device = todos.model.get_device()
     model = model.to(device)
@@ -162,7 +158,6 @@ def get_image_anime4x_model():
 def get_image_denoise4x_model():
     """Create model."""
     model = rrdbnet.SRVGGNetDenoise()
-    model = todos.model.ResizePadModel(model, scale=4)
 
     # 'realesr-general-x4v3.pth', 'realesr-general-wdn-x4v3.pth'
 
