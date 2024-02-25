@@ -26,7 +26,7 @@ import pdb
 #     x_view = x.view(b, c, h, scale, w, scale)
 #     x_view = x_view.permute(0, 1, 3, 5, 2, 4) # b, (c * scale * scale), h, w
 
-#     return x_view.reshape(b, out_channel, h, w).float()
+#     return x_view.reshape(b, out_channel, h, w)
 
 
 def make_layer(basic_block, num_basic_block, **kwarg):
@@ -95,8 +95,6 @@ class RRDBNet(nn.Module):
         self.scale = scale
         if scale == 2:
             num_in_ch = num_in_ch * 4
-        elif scale == 1:
-            num_in_ch = num_in_ch * 16
         self.conv_first = nn.Conv2d(num_in_ch, num_feat, 3, 1, 1)
         self.body = make_layer(RRDB, num_block, num_feat=num_feat, num_grow_ch=num_grow_ch)
         self.conv_body = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
@@ -145,7 +143,7 @@ class RRDBNet(nn.Module):
         feat = self.lrelu(self.conv_up2(F.interpolate(feat, scale_factor=2.0, mode="bicubic", align_corners=True)))
         out = self.conv_last(self.lrelu(self.conv_hr(feat)))
         
-        return out[:, :, 0:H*self.scale, 0:W*self.scale].clamp(0.0, 1.0).float()
+        return out[:, :, 0:H*self.scale, 0:W*self.scale].clamp(0.0, 1.0)
 
 
 class SRVGGNetCompact(nn.Module):
@@ -220,7 +218,7 @@ class SRVGGNetCompact(nn.Module):
         # add the nearest upsampled image, so that the network learns the residual
         base = F.interpolate(x, scale_factor=self.upscale, mode='nearest')
         out += base
-        return out.float()
+        return out
 
 
 class SRVGGNetDenoise(nn.Module):
@@ -249,5 +247,5 @@ class SRVGGNetDenoise(nn.Module):
         # add the nearest upsampled image, so that the network learns the residual
         base = F.interpolate(x, scale_factor=self.model1.upscale, mode='nearest')
         out += base
-        return out.float()
+        return out
 

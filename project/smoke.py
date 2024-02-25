@@ -2,17 +2,6 @@
 #
 # /************************************************************************************
 # ***
-# ***    Copyright Dell 2020-2022(18588220928@163.com), All Rights Reserved.
-# ***
-# ***    File Author: Dell, 2020年 12月 28日 星期一 14:29:37 CST
-# ***
-# ************************************************************************************/
-#
-
-# coding=utf-8
-#
-# /************************************************************************************
-# ***
 # ***    Copyright Dell 2020-2024(18588220928@163.com), All Rights Reserved.
 # ***
 # ***    File Author: Dell, 2020年 12月 28日 星期一 14:29:37 CST
@@ -92,7 +81,7 @@ def run_bench_mark():
 def export_onnx_model(model_name="zoom4x"):
     import onnx
     import onnxruntime
-    # from onnxsim import simplify
+    from onnxsim import simplify
     import onnxoptimizer
 
     print("Export onnx model ...")
@@ -105,7 +94,7 @@ def export_onnx_model(model_name="zoom4x"):
     if model_name == "anime4x":
         model, device = image_zoom.get_image_anime4x_model()
 
-    B, C, H, W = 1, 3, 256, 256 # model.MAX_H, model.MAX_W
+    B, C, H, W = 1, 3, 128, 128 # model.MAX_H, model.MAX_W
     model.to(device)
 
     dummy_input = torch.randn(B, C, H, W).to(device)
@@ -142,12 +131,17 @@ def export_onnx_model(model_name="zoom4x"):
     onnx_model = onnx.load(onnx_filename)
     onnx.checker.check_model(onnx_model)
 
-    # !!! onnxsim not support pixel_unshuffle !!! 
-    # onnx_model, check = simplify(onnx_model)
-    # assert check, "Simplified ONNX model could not be validated"
-    # onnx.save(onnx_model, onnx_filename)
-    # print(onnx.helper.printable_graph(onnx_model.graph))
+    if model_name == "zoom2x":
+        # !!! onnxsim not support pixel_unshuffle !!! 
+        # onnx_model, check = simplify(onnx_model)
+        # # assert check, "Simplified ONNX model could not be validated"
+        # print(onnx.helper.printable_graph(onnx_model.graph))
+        pass
+    else:
+        onnx_model, check = simplify(onnx_model)
+        assert check, "Simplified ONNX model could not be validated"
     onnx_model = onnxoptimizer.optimize(onnx_model)
+    print(onnx.helper.printable_graph(onnx_model.graph))
     onnx.save(onnx_model, onnx_filename)
 
     # 4. Run onnx model
@@ -175,7 +169,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Smoke Test')
     parser.add_argument('-s', '--shape_test', action="store_true", help="test shape")
     parser.add_argument('-b', '--bench_mark', action="store_true", help="test benchmark")
-    parser.add_argument('-e', '--export_onnx', action="store_true", help="txport onnx model")
+    parser.add_argument('-e', '--export_onnx', action="store_true", help="export onnx model")
+    parser.add_argument('model', type=str, default="zoom4x", help="model name: zoom4x, anime4x, zoom2x")
     args = parser.parse_args()
 
     if args.shape_test:
@@ -184,9 +179,7 @@ if __name__ == "__main__":
         run_bench_mark()
     if args.export_onnx:
         # export DEVICE=cpu for OOM of cuda
-        export_onnx_model("zoom4x")
-        export_onnx_model("zoom2x")
-        export_onnx_model("anime4x")
+        export_onnx_model(args.model)
     
     if not (args.shape_test or args.bench_mark or args.export_onnx):
         parser.print_help()
