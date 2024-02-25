@@ -92,7 +92,6 @@ class RRDBNet(nn.Module):
             self.MAX_W = 1024
         self.MAX_TIMES = scale
 
-        self.scale = scale
         if scale == 2:
             num_in_ch = num_in_ch * 4
         self.conv_first = nn.Conv2d(num_in_ch, num_feat, 3, 1, 1)
@@ -106,8 +105,8 @@ class RRDBNet(nn.Module):
         self.conv_last = nn.Conv2d(num_feat, num_out_ch, 3, 1, 1)
 
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        if self.scale == 2:
-            self.unshffle = nn.PixelUnshuffle(self.scale)
+        if scale == 2:
+            self.unshffle = nn.PixelUnshuffle(scale)
         else:
             self.unshffle = nn.Identity()
 
@@ -128,8 +127,8 @@ class RRDBNet(nn.Module):
     def forward(self, x):
         B, C, H, W = x.size()
 
-        pad_h = self.scale - (H % self.scale)
-        pad_w = self.scale - (W % self.scale)
+        pad_h = self.MAX_TIMES - (H % self.MAX_TIMES)
+        pad_w = self.MAX_TIMES - (W % self.MAX_TIMES)
         x = F.pad(x, (0, pad_w, 0, pad_h), 'reflect')
 
         feat = self.unshffle(x)
@@ -143,7 +142,7 @@ class RRDBNet(nn.Module):
         feat = self.lrelu(self.conv_up2(F.interpolate(feat, scale_factor=2.0, mode="bicubic", align_corners=True)))
         out = self.conv_last(self.lrelu(self.conv_hr(feat)))
         
-        return out[:, :, 0:H*self.scale, 0:W*self.scale].clamp(0.0, 1.0)
+        return out[:, :, 0:H*self.MAX_TIMES, 0:W*self.MAX_TIMES].clamp(0.0, 1.0)
 
 
 class SRVGGNetCompact(nn.Module):
