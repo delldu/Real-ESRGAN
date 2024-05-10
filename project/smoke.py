@@ -14,6 +14,7 @@ import torch
 import image_zoom
 
 import argparse
+import todos
 import pdb
 
 
@@ -24,7 +25,7 @@ def test_input_shape():
 
     print("Test input shape ...")
 
-    model, device = image_zoom.get_image_zoom4x_model()
+    model, device = image_zoom.get_image_anime4x_model() # zoom4x_model()
 
     N = 100
     B, C, H, W = 1, 3, model.MAX_H, model.MAX_W
@@ -94,8 +95,7 @@ def export_onnx_model(model_name="zoom4x"):
     if model_name == "anime4x":
         model, device = image_zoom.get_image_anime4x_model()
 
-    B, C, H, W = 1, 3, 128, 128 # model.MAX_H, model.MAX_W
-    model.to(device)
+    B, C, H, W = 1, 3, 512, 512 # model.MAX_H, model.MAX_W
 
     dummy_input = torch.randn(B, C, H, W).to(device)
     # if 'cuda' in str(device.type):
@@ -141,7 +141,7 @@ def export_onnx_model(model_name="zoom4x"):
         onnx_model, check = simplify(onnx_model)
         assert check, "Simplified ONNX model could not be validated"
     onnx_model = onnxoptimizer.optimize(onnx_model)
-    print(onnx.helper.printable_graph(onnx_model.graph))
+    # print(onnx.helper.printable_graph(onnx_model.graph))
     onnx.save(onnx_model, onnx_filename)
 
     # 4. Run onnx model
@@ -162,6 +162,7 @@ def export_onnx_model(model_name="zoom4x"):
         torch.testing.assert_close(torch_output, torch.tensor(onnx_output), rtol=0.01, atol=0.01)
 
     print("!!!!!! Torch and ONNX Runtime output matched !!!!!!")
+    todos.model.reset_device()
 
 
 
@@ -170,7 +171,6 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--shape_test', action="store_true", help="test shape")
     parser.add_argument('-b', '--bench_mark', action="store_true", help="test benchmark")
     parser.add_argument('-e', '--export_onnx', action="store_true", help="export onnx model")
-    parser.add_argument('model', type=str, default="zoom4x", help="model name: zoom4x, anime4x, zoom2x")
     args = parser.parse_args()
 
     if args.shape_test:
@@ -179,7 +179,9 @@ if __name__ == "__main__":
         run_bench_mark()
     if args.export_onnx:
         # export DEVICE=cpu for OOM of cuda
-        export_onnx_model(args.model)
+        export_onnx_model("zoom4x")
+        # export_onnx_model("zoom2x")
+        # export_onnx_model("anime4x")
     
     if not (args.shape_test or args.bench_mark or args.export_onnx):
         parser.print_help()

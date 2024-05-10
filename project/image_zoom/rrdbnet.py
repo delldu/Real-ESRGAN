@@ -82,15 +82,17 @@ class RRDB(nn.Module):
 class RRDBNet(nn.Module):
     def __init__(self, model_name, num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4):
         super().__init__()
-        # Define max GPU memory
-        #  -- 512x512, 4x: 5.4G, 1000ms
         if scale == 4:
-            self.MAX_H = 512
-            self.MAX_W = 512
+            self.MAX_H = 640
+            self.MAX_W = 1024
         else: # scale == 2
             self.MAX_H = 1024
-            self.MAX_W = 1024
+            self.MAX_W = 2048
         self.MAX_TIMES = scale
+        #  GPU memory
+        #  zoom4x -- 640x1024, 8.8G, 1000ms;
+        #  zoom2x -- 1024x2048, 7.4G, 2600ms
+        #  anime4x -- 512x1024, 7.4G, 800ms
 
         if scale == 2:
             num_in_ch = num_in_ch * 4
@@ -127,8 +129,8 @@ class RRDBNet(nn.Module):
     def forward(self, x):
         B, C, H, W = x.size()
 
-        pad_h = self.MAX_TIMES - (H % self.MAX_TIMES)
-        pad_w = self.MAX_TIMES - (W % self.MAX_TIMES)
+        pad_h = (self.MAX_TIMES - (H % self.MAX_TIMES)) % self.MAX_TIMES
+        pad_w = (self.MAX_TIMES - (W % self.MAX_TIMES)) % self.MAX_TIMES
         x = F.pad(x, (0, pad_w, 0, pad_h), 'reflect')
 
         feat = self.unshffle(x)

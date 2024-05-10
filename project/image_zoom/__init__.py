@@ -344,6 +344,7 @@ def image_denoise4x_predict(input_files, noise_strength, output_dir):
 
         # orig input
         input_tensor = todos.data.load_tensor(filename)
+        B, C, H, W = input_tensor.shape
 
         # if 'cuda' in str(device.type):
         #     input_tensor = input_tensor.half()
@@ -353,7 +354,6 @@ def image_denoise4x_predict(input_files, noise_strength, output_dir):
 
         output_file = f"{output_dir}/{os.path.basename(filename)}"
 
-        B, C, H, W = input_tensor.shape
         orig_tensor = todos.data.resize_tensor(input_tensor, 4 * H, 4 * W)
         todos.data.save_tensor([orig_tensor, predict_tensor], output_file)
     todos.model.reset_device()
