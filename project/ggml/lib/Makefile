@@ -8,19 +8,11 @@
 #
 
 LIBNAME := libggml_engine
-PKGCONFNAME :=ggml_engine.pc
 
-ENGINE_VERSION := V1.0.0
 RELEASE_DATE := $(shell date '+%Y-%m-%d')
 
 # Installation related variables and target
-PREFIX?=/usr/local
-INCLUDE_PATH?=include/ggml_engine
-LIBRARY_PATH?=lib
-PKGCONF_PATH?=pkgconfig
-INSTALL_INCLUDE_PATH= $(PREFIX)/$(INCLUDE_PATH)
-INSTALL_LIBRARY_PATH= $(PREFIX)/$(LIBRARY_PATH)
-INSTALL_PKGCONF_PATH= $(INSTALL_LIBRARY_PATH)/$(PKGCONF_PATH)
+INSTALL_PATH ?= $(shell pkg-config ggml --cflags | sed s/-I//g)
 
 INCS	:=  \
 		$(shell pkg-config nimage --cflags) \
@@ -30,10 +22,13 @@ INCS	:=  \
 SOURCE :=  \
 	source/ggml_engine.c
 
-DEFINES := -DGGML_CUBLAS -DENGINE_VERSION="\"${ENGINE_VERSION}\"" -DRELEASE_DATE="\"${RELEASE_DATE}\"" \
+DEFINES := \
+ 	-DGGML_CUDA \
+	-DRELEASE_DATE="\"${RELEASE_DATE}\"" \
  	-D_GLIBCXX_USE_CXX11_ABI=1 -std=c++11 -std=gnu++11
 
-CFLAGS := -O2 -fPIC -Wall -Wextra
+
+CFLAGS := -O3 -fPIC -Wall -Wextra
 CXXFLAGS := ${CFLAGS}
 LDFLAGS := -fPIC
 
@@ -73,12 +68,8 @@ clean:
 	rm -rf *.a *.so *.o $(OBJECTS)
 
 install:
-	sudo mkdir -p ${INSTALL_INCLUDE_PATH}
-	sudo cp include/*.h ${INSTALL_INCLUDE_PATH}
-	sudo cp ${LIBNAME}.a ${INSTALL_LIBRARY_PATH}
-
-	sudo mkdir -p ${INSTALL_PKGCONF_PATH}
-	sudo cp ${PKGCONFNAME} ${INSTALL_PKGCONF_PATH}
+	sudo mkdir -p ${INSTALL_PATH}
+	sudo cp include/ggml_engine.h ${INSTALL_PATH}
 
 
 #cmake -DGGML_CUBLAS=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.1/bin/nvcc ..

@@ -8,17 +8,19 @@
 #************************************************************************************/
 #
 
-TARGET := image_anime4x
+TARGET := image_zoom4x
 SOURCE := main.cpp
 
+RELEASE_DATE := $(shell date '+%Y-%m-%d')
+
 INCS	:=  \
+		-Ilib/include \
 		$(shell pkg-config nimage --cflags) \
-		$(shell pkg-config ggml --cflags) \
-		-Ilib/include
+		$(shell pkg-config ggml --cflags) 
 
 LIBS	:= \
-	-Llib -lggml_engine $(shell pkg-config ggml --libs) \
 	$(shell pkg-config nimage --libs) \
+	$(shell pkg-config ggml --libs) -lgomp \
 	-L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas -lpthread -lm -lstdc++
 
 CXXFLAGS := -O2 -fPIC
@@ -27,8 +29,9 @@ LDFLAGS := -fPIC
 #****************************************************************************
 # Makefile code common to all platforms
 #****************************************************************************
-DEFINES  := -DGGML_CUBLAS
-# -D_GLIBCXX_USE_CXX11_ABI=1 -std=c++11 -std=gnu++11
+DEFINES  := -DGGML_CUDA -DRELEASE_DATE="\"${RELEASE_DATE}\"" \
+		-D_GLIBCXX_USE_CXX11_ABI=1 -std=c++11 -std=gnu++11
+
 CXXFLAGS := ${CXXFLAGS} ${DEFINES}
 
 OBJECT := $(addsuffix .o,$(basename ${SOURCE}))
@@ -40,8 +43,6 @@ all: ${TARGET}
 # Compile block
 #****************************************************************************
 ${TARGET}: ${OBJECT}
-	make -C lib
-
 	${CXX} ${LDFLAGS} -o ${TARGET} ${OBJECT} ${LIBS}
 
 install:
@@ -61,10 +62,8 @@ install:
 depend:
 
 clean:
-	make -C lib clean
-
 	rm -f core ${OBJECT} ${TARGET}
 
 format:
 	clang-format --style="{BasedOnStyle: WebKit, TabWidth: 4, IndentWidth: 4, ColumnLimit: 120}" \
-	-i lib/include/*.h lib/source/*.c main.cpp rrdbnet.h
+	-i main.cpp rrdbnet.h

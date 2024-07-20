@@ -11,7 +11,6 @@
 
 #include <ggml.h>
 
-#define EPS 1e-05f
 
 struct ggml_tensor* ggml_nn_identity(struct ggml_context* ctx, struct ggml_tensor* x)
 {
@@ -32,7 +31,7 @@ struct ggml_tensor* ggml_nn_conv_2d(struct ggml_context* ctx, struct ggml_tensor
 }
 
 struct ggml_tensor* ggml_nn_layer_norm(
-    struct ggml_context* ctx, struct ggml_tensor* x, struct ggml_tensor* w, struct ggml_tensor* b, float eps = EPS)
+    struct ggml_context* ctx, struct ggml_tensor* x, struct ggml_tensor* w, struct ggml_tensor* b, float eps = 1e-06f)
 {
     x = ggml_norm(ctx, x, eps);
     x = ggml_mul(ctx, x, w);
