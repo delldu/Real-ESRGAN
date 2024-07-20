@@ -393,10 +393,10 @@ struct Anime4x : GGMLNetwork {
         ggml_format_name(conv_last_bias, "%s%s", prefix, "conv_last.bias");
     }
 
-    size_t get_graph_size()
-    {
-        return GGML_DEFAULT_GRAPH_SIZE * 2; // 2048 ==> 4096
-    }
+    // size_t get_graph_size()
+    // {
+    //     return GGML_DEFAULT_GRAPH_SIZE * 2; // 2048 ==> 4096
+    // }
 
     struct ggml_tensor* forward(struct ggml_context* ctx, int eng_argc, struct ggml_tensor* eng_argv[])
     {
@@ -550,7 +550,7 @@ struct Zoom4x : GGMLNetwork {
 
     size_t get_graph_size()
     {
-        return GGML_DEFAULT_GRAPH_SIZE * 2 * 4; // 2048 ==> 4096 * 16
+        return GGML_DEFAULT_GRAPH_SIZE * 2; // 2048 ==> 4096
     }
 
     struct ggml_tensor* forward(struct ggml_context* ctx, int eng_argc, struct ggml_tensor* eng_argv[])

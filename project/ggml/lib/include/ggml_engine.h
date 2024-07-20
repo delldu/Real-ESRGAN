@@ -212,7 +212,7 @@ void dump_ggml_tensor(const char* prefix, struct ggml_tensor* tensor);
         {
             // ggml_tensor_overhead() == 400
             struct ggml_init_params params = {
-                /*.mem_size   =*/ 16 * 1024 * 1024, // 16M Padding, max num_tensors ~ 40K
+                /*.mem_size   =*/ 16 * 1024 * 1024,  // 16M
                 /*.mem_buffer =*/NULL,
                 /*.no_alloc   =*/true, // the tensors no need to be allocated later
             };
@@ -220,8 +220,8 @@ void dump_ggml_tensor(const char* prefix, struct ggml_tensor* tensor);
             check_point(temp_context);
             create_weight_tensors(temp_context);
 
-            num_tensors = 0; // MAX_INPUT_TENSORS;
-            eng->backend_buffer_size = 0; // 32 * 1024 * 1024; // 32 M Preserve for input and padding ...
+            num_tensors = 0;
+            eng->backend_buffer_size = 0;
             for_each_context_tensor(temp_context)
             {
                 num_tensors++;
@@ -267,13 +267,11 @@ void dump_ggml_tensor(const char* prefix, struct ggml_tensor* tensor);
             check_point(eng->backend);
 
             eng->weight_backend_buffer = ggml_backend_alloc_ctx_tensors(eng->weight_context, eng->backend);
-            // eng->weight_backend_buffer = ggml_backend_alloc_buffer(eng->backend, eng->backend_buffer_size);
             check_point(eng->weight_backend_buffer != NULL);
         }
 
         // Set CPU threads ...
         {
-            // eng->cpu_threads = MAX(std::thread::hardware_concurrency(), 1);
             if (ggml_backend_is_cpu(eng->backend)) {
                 ggml_backend_cpu_set_n_threads(eng->backend, eng->cpu_threads);
             }
@@ -383,7 +381,6 @@ void dump_ggml_tensor(const char* prefix, struct ggml_tensor* tensor);
                     continue;
                 }
 
-
                 // Loading tensors ...
                 if (destion_tensor->type == t->type) { // fast set
                     if (cpu_backend) {
@@ -447,7 +444,8 @@ void dump_ggml_tensor(const char* prefix, struct ggml_tensor* tensor);
         CHECK_POINT(ctx != NULL);
 
         // struct ggml_cgraph* gf = ggml_new_graph(ctx);
-        struct ggml_cgraph* gf = ggml_new_graph_custom(ctx, 2*GGML_DEFAULT_GRAPH_SIZE, false);
+        // struct ggml_cgraph* gf = ggml_new_graph_custom(ctx, 2*GGML_DEFAULT_GRAPH_SIZE, false);
+        struct ggml_cgraph* gf = ggml_new_graph_custom(ctx, this->get_graph_size(), false);
         CHECK_POINT(gf != NULL);
 
 
@@ -527,9 +525,9 @@ void dump_ggml_tensor(const char* prefix, struct ggml_tensor* tensor);
                     ggml_free(m_ggml_engine.inputs_context);
 
                 struct ggml_init_params params = {
-                    /*.mem_size   =*/ ggml_tensor_overhead() * MAX_INPUT_TENSORS, //  + 1024*1024,
+                    /*.mem_size   =*/ ggml_tensor_overhead() * MAX_INPUT_TENSORS,
                     /*.mem_buffer =*/NULL,
-                    /*.no_alloc   =*/true, // the tensors will be allocated later or not
+                    /*.no_alloc   =*/true, // the tensors will not be allocated later
                 };
                 m_ggml_engine.inputs_context = ggml_init(params);
                 CHECK_POINT(m_ggml_engine.inputs_context);
